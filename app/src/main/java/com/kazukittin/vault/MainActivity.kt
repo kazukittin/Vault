@@ -15,9 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.kazukittin.vault.data.local.VaultAuthManager
 import com.kazukittin.vault.data.repository.AuthRepository
 import com.kazukittin.vault.ui.theme.VaultTheme
+import com.kazukittin.vault.ui.home.HomeScreen
 import com.kazukittin.vault.ui.login.LoginScreen
 import com.kazukittin.vault.ui.login.LoginViewModel
 
@@ -26,7 +30,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 簡易DI: 手動で依存関係を解決（本来はHilt等を使います）
+        // 簡易DI
         val authManager = VaultAuthManager(applicationContext)
         val authRepository = AuthRepository(authManager)
         
@@ -46,21 +50,42 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding)) {
                         
-                        // Compose内でViewModelを取得
-                        val loginViewModel: LoginViewModel = viewModel(factory = viewModelFactory)
-                        val loginState by loginViewModel.loginState.collectAsState()
+                        val navController = rememberNavController()
+                        // 既にSIDを持っていれば直接 home へ、なければ login へ
+                        val startDest = if (authManager.getSessionId() != null) "home" else "login"
 
-                        LoginScreen(
-                            loginState = loginState,
-                            onLoginClick = { ip, account, pass ->
-                                // ViewModelにログイン処理を移譲
-                                loginViewModel.login(applicationContext, ip, account, pass)
-                            },
-                            onSuccess = { sid ->
-                                // ログイン成功時：本来はここでHomeScreenに遷移する
-                                Toast.makeText(this@MainActivity, "ログイン成功! SID: $sid", Toast.LENGTH_LONG).show()
+                        NavHost(navController = navController, startDestination = startDest) {
+                            
+                            composable("login") {
+                                val loginViewModel: LoginViewModel = viewModel(factory = viewModelFactory)
+                                val loginState by loginViewModel.loginState.collectAsState()
+
+                                LoginScreen(
+                                    loginState = loginState,
+                                    onLoginClick = { ip, account, pass ->
+                                        loginViewModel.login(applicationContext, ip, account, pass)
+                                    },
+                                    onSuccess = { sid ->
+                                        Toast.makeText(this@MainActivity, "ログイン成功!", Toast.LENGTH_SHORT).show()
+                                        // 成功したらホーム画面へ遷移し、バックスタックからloginを消す
+                                        navController.navigate("home") {
+                                            popUpTo("login") { inclusive = true }
+                                        }
+                                    }
+                                )
                             }
-                        )
+
+                            composable("home") {
+                                // 今はまだダミーのリストを渡しています (Phase 3でRoomと連動させます)
+                                HomeScreen(
+                                    pinnedCollections = emptyList(),
+                                    allCollections = emptyList(),
+                                    onAddClick = {
+                                        Toast.makeText(this@MainActivity, "フォルダ追加クリック", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

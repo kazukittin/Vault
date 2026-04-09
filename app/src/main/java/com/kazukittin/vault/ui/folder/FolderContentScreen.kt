@@ -20,7 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,40 +103,67 @@ fun FolderContentScreen(
                             }
                         }
                     } else {
-                        val isVideo = item.name.lowercase().let { it.endsWith(".mp4") || it.endsWith(".mov") || it.endsWith(".avi") }
-                        val url        = viewModel.getThumbnailUrl(item.path)
+                        val isVideo = item.name.lowercase().let {
+                            it.endsWith(".mp4") || it.endsWith(".mov") ||
+                            it.endsWith(".avi") || it.endsWith(".mkv") || it.endsWith(".webm")
+                        }
                         val mediaIndex = imageItems.indexOf(item)
 
-                        Box(
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(vaultContainer)
-                                .clickable {
-                                    if (mediaIndex >= 0) onPhotoClick(mediaIndex)
-                                }
-                        ) {
-                            AsyncImage(
-                                model = url,
-                                contentDescription = item.name,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                            if (isVideo) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
-                                        .padding(4.dp)
+                        if (isVideo) {
+                            // 動画: サーバーサイドのサムネイル生成が遅いため即時プレースホルダーを表示
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF0D1E35))
+                                    .clickable {
+                                        if (mediaIndex >= 0) onPhotoClick(mediaIndex)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(8.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.PlayArrow,
-                                        contentDescription = "Video",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFFA1CCED).copy(alpha = 0.15f), RoundedCornerShape(32.dp))
+                                            .padding(12.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.PlayArrow,
+                                            contentDescription = "Video",
+                                            tint = Color(0xFFA1CCED),
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = item.name,
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 10.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
+                        } else {
+                            // 写真: サムネイルをネットワークから取得
+                            val url = viewModel.getThumbnailUrl(item.path)
+                            AsyncImage(
+                                model = url,
+                                contentDescription = item.name,
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(vaultContainer)
+                                    .clickable {
+                                        if (mediaIndex >= 0) onPhotoClick(mediaIndex)
+                                    },
+                                contentScale = ContentScale.Crop
+                            )
                         }
                     }
                 }

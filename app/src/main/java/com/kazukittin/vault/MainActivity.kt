@@ -96,7 +96,46 @@ class MainActivity : ComponentActivity() {
 
                                 HomeScreen(
                                     pinnedCollections = pinnedFolders,
-                                    allCollections = allFolders
+                                    allCollections = allFolders,
+                                    onFolderClick = { path, name ->
+                                        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+                                        val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
+                                        navController.navigate("folder/$encodedPath?name=$encodedName")
+                                    }
+                                )
+                            }
+
+                            composable(
+                                route = "folder/{folderPath}?name={folderName}",
+                                arguments = listOf(
+                                    androidx.navigation.navArgument("folderPath") { type = androidx.navigation.NavType.StringType },
+                                    androidx.navigation.navArgument("folderName") { type = androidx.navigation.NavType.StringType; defaultValue = "Folder" }
+                                )
+                            ) { backStackEntry ->
+                                val folderPath = backStackEntry.arguments?.getString("folderPath") ?: ""
+                                val folderName = backStackEntry.arguments?.getString("folderName") ?: ""
+                                val decodedPath = java.net.URLDecoder.decode(folderPath, "UTF-8")
+                                val decodedName = java.net.URLDecoder.decode(folderName, "UTF-8")
+
+                                val folderViewModel: com.kazukittin.vault.ui.folder.FolderContentViewModel = viewModel(
+                                    key = decodedPath,
+                                    factory = object : ViewModelProvider.Factory {
+                                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                            @Suppress("UNCHECKED_CAST")
+                                            return com.kazukittin.vault.ui.folder.FolderContentViewModel(folderRepository, decodedPath) as T
+                                        }
+                                    }
+                                )
+
+                                com.kazukittin.vault.ui.folder.FolderContentScreen(
+                                    folderName = decodedName,
+                                    viewModel = folderViewModel,
+                                    onBack = { navController.popBackStack() },
+                                    onFolderClick = { path, name ->
+                                        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+                                        val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
+                                        navController.navigate("folder/$encodedPath?name=$encodedName")
+                                    }
                                 )
                             }
                         }

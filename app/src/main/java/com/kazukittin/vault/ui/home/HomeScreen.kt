@@ -1,6 +1,7 @@
 package com.kazukittin.vault.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -21,7 +22,8 @@ import com.kazukittin.vault.data.local.db.FolderEntity
 @Composable
 fun HomeScreen(
     pinnedCollections: List<FolderEntity>,
-    allCollections: List<FolderEntity>
+    allCollections: List<FolderEntity>,
+    onFolderClick: (String, String) -> Unit
 ) {
     val vaultSurface = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)
@@ -57,7 +59,12 @@ fun HomeScreen(
             }
 
             items(pinnedCollections) { folder ->
-                CollectionCard(folder = folder, isSmall = false, containerColor = vaultContainer)
+                CollectionCard(
+                    folder = folder, 
+                    isSmall = false, 
+                    containerColor = vaultContainer,
+                    onClick = { onFolderClick(folder.id, folder.name) }
+                )
             }
 
             // All Collections Section
@@ -71,21 +78,27 @@ fun HomeScreen(
             }
 
             items(allCollections) { folder ->
-                CollectionCard(folder = folder, isSmall = true, containerColor = vaultContainer)
+                CollectionCard(
+                    folder = folder, 
+                    isSmall = true, 
+                    containerColor = vaultContainer,
+                    onClick = { onFolderClick(folder.id, folder.name) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun CollectionCard(folder: FolderEntity, isSmall: Boolean, containerColor: Color) {
+fun CollectionCard(folder: FolderEntity, isSmall: Boolean, containerColor: Color, onClick: () -> Unit) {
     val cardHeight = if (isSmall) 100.dp else 160.dp
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .height(cardHeight)
-            .clip(RoundedCornerShape(12.dp)),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Box(modifier = Modifier.padding(16.dp)) {

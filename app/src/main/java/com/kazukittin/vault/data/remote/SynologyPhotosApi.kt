@@ -18,6 +18,16 @@ interface SynologyPhotosApi {
         @Query("limit") limit: Int = 100,
         @Query("_sid") sessionId: String
     ): FolderResponse
+    @GET("webapi/entry.cgi")
+    suspend fun getFolderContents(
+        @Query("api") api: String = "SYNO.FileStation.List",
+        @Query("version") version: Int = 2,
+        @Query("method") method: String = "list",
+        @Query("folder_path") folderPath: String,
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 1000, // 大きめにとっておく
+        @Query("_sid") sessionId: String
+    ): FolderResponse
 }
 
 data class FolderResponse(
@@ -31,7 +41,8 @@ data class FolderError(
 )
 
 data class FolderData(
-    @SerializedName("shares") val shares: List<SynoFolder>?
+    @SerializedName("shares") val shares: List<SynoFolder>?,
+    @SerializedName("files") val files: List<SynoFolder>?
 )
 
 data class SynoFolder(

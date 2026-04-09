@@ -53,4 +53,34 @@ class FolderRepository(
             }
         }
     }
+
+    // フォルダ内のアイテムを取得する（Room保存なし、直接UIへ）
+    suspend fun getFolderContents(folderPath: String): List<com.kazukittin.vault.data.remote.SynoFolder> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val sid = authManager.getSessionId() ?: throw Exception("Not logged in")
+                val response = photosApi.getFolderContents(
+                    folderPath = folderPath,
+                    sessionId = sid
+                )
+                if (response.success && response.data != null) {
+                    response.data.files ?: emptyList()
+                } else {
+                    Log.e("FolderRepository", "サブフォルダ取得失敗: error = \${response.error?.code}")
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e("FolderRepository", "サブフォルダ取得エラー: \${e.message}")
+                emptyList()
+            }
+        }
+    }
+
+    // サムネイル画像のURLを構築する
+    fun getThumbnailUrl(path: String): String? {
+        val ip = authManager.getNasIp() ?: return null
+        val sid = authManager.getSessionId() ?: return null
+        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+        return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Thumb&version=2&method=get&path=$encodedPath&size=small&_sid=$sid"
+    }
 }

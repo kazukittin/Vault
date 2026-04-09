@@ -52,7 +52,7 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Vault NAS Login",
+                    text = "Vault NASへログイン",
                     style = MaterialTheme.typography.headlineMedium,
                     color = vaultPrimary
                 )
@@ -68,7 +68,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = nasIp,
                     onValueChange = { nasIp = it },
-                    label = { Text("NAS IP Address") },
+                    label = { Text("NASのIPアドレス (例: 192.168.1.10)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -81,7 +81,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = account,
                     onValueChange = { account = it },
-                    label = { Text("Account") },
+                    label = { Text("ユーザー名") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -94,7 +94,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password") },
+                    label = { Text("パスワード") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
@@ -120,7 +120,7 @@ fun LoginScreen(
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Login to NAS", color = vaultSurface)
+                        Text("ログイン", color = vaultSurface, style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }

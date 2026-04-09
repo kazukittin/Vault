@@ -55,7 +55,7 @@ fun HomeScreen(
             // Pinned Section
             item(span = { GridItemSpan(2) }) {
                 Text(
-                    text = "Pinned Collections",
+                    text = "ピン留めされたコレクション",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
@@ -69,7 +69,7 @@ fun HomeScreen(
             // All Collections Section
             item(span = { GridItemSpan(2) }) {
                 Text(
-                    text = "All Folders",
+                    text = "すべてのフォルダ",
                     style = MaterialTheme.typography.titleSmall,
                     color = Color.LightGray,
                     modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)

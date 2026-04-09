@@ -36,4 +36,8 @@ class FolderContentViewModel(
     fun getThumbnailUrl(path: String): String? {
         return folderRepository.getThumbnailUrl(path)
     }
+
+    fun getOriginalImageUrl(path: String): String? {
+        return folderRepository.getOriginalImageUrl(path)
+    }
 }

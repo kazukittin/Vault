@@ -29,7 +29,8 @@ fun FolderContentScreen(
     folderName: String,
     viewModel: FolderContentViewModel,
     onBack: () -> Unit,
-    onFolderClick: (String, String) -> Unit
+    onFolderClick: (String, String) -> Unit,
+    onPhotoClick: (String, String) -> Unit
 ) {
     val items by viewModel.items.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -87,13 +88,17 @@ fun FolderContentScreen(
                     } else {
                         // 画像表示 (サムネイル)
                         val url = viewModel.getThumbnailUrl(item.path)
+                        val originalUrl = viewModel.getOriginalImageUrl(item.path)
                         AsyncImage(
                             model = url,
                             contentDescription = item.name,
                             modifier = Modifier
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(vaultContainer),
+                                .background(vaultContainer)
+                                .clickable { 
+                                    if (originalUrl != null) onPhotoClick(originalUrl, item.name) 
+                                },
                             contentScale = ContentScale.Crop
                         )
                     }

@@ -135,7 +135,31 @@ class MainActivity : ComponentActivity() {
                                         val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
                                         val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
                                         navController.navigate("folder/$encodedPath?name=$encodedName")
+                                    },
+                                    onPhotoClick = { originalUrl, name ->
+                                        val encodedUrl = java.net.URLEncoder.encode(originalUrl, "UTF-8")
+                                        val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
+                                        navController.navigate("photo?url=$encodedUrl&name=$encodedName")
                                     }
+                                )
+                            }
+
+                            composable(
+                                route = "photo?url={url}&name={name}",
+                                arguments = listOf(
+                                    androidx.navigation.navArgument("url") { type = androidx.navigation.NavType.StringType },
+                                    androidx.navigation.navArgument("name") { type = androidx.navigation.NavType.StringType; defaultValue = "Photo" }
+                                )
+                            ) { backStackEntry ->
+                                val url = backStackEntry.arguments?.getString("url")
+                                val name = backStackEntry.arguments?.getString("name") ?: ""
+                                val decodedUrl = url?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                                val decodedName = java.net.URLDecoder.decode(name, "UTF-8")
+
+                                com.kazukittin.vault.ui.viewer.PhotoViewerScreen(
+                                    imageUrl = decodedUrl,
+                                    fileName = decodedName,
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
                         }

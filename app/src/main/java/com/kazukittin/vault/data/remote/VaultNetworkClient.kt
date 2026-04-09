@@ -9,19 +9,25 @@ import java.util.concurrent.TimeUnit
 
 object VaultNetworkClient {
 
-    private fun getOkHttpClient(context: Context): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY // 開発用: 通信ログを出力
-        }
+    private var cachedOkHttpClient: OkHttpClient? = null
 
-        return OkHttpClient.Builder()
-            .addInterceptor(logging)
-            .addInterceptor(SsidInterceptor(context))
-            // タイムアウト設定 (HDDスピンアップ考慮)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
+    // IPアドレスを受け取って動的にRetrofitを作成する
+    fun getOkHttpClient(context: Context): OkHttpClient {
+        if (cachedOkHttpClient == null) {
+            val logging = HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY // 開発用: 通信ログを出力
+            }
+
+            cachedOkHttpClient = OkHttpClient.Builder()
+                .addInterceptor(logging)
+                .addInterceptor(SsidInterceptor(context))
+                // タイムアウト設定 (HDDスピンアップ考慮)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+        }
+        return cachedOkHttpClient!!
     }
 
     // IPアドレスを受け取って動的にRetrofitを作成する

@@ -1,28 +1,32 @@
 package com.kazukittin.vault.data.repository
 
+import android.content.Context
 import com.kazukittin.vault.data.local.VaultAuthManager
 import com.kazukittin.vault.data.remote.SynologyAuthApi
+import com.kazukittin.vault.data.remote.VaultNetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class AuthRepository(
-    private val authApi: SynologyAuthApi,
     private val authManager: VaultAuthManager
 ) {
-    suspend fun authenticate(): Result<String> = withContext(Dispatchers.IO) {
-        val account = authManager.getAccount()
-        val password = authManager.getPassword()
-        
-        if (account.isNullOrBlank() || password.isNullOrBlank()) {
-            return@withContext Result.failure(Exception("No credentials found"))
-        }
+    // 既存の再認証用メソッド（Phase 3や起動時などに使用）
+    // 後ほど VaultNetworkClient からAPIを生成するように変更します。
 
+    /**
+     * UI（ログイン画面）からの初回ログイン
+     */
+    suspend fun loginFirstTime(context: Context, ip: String, account: String, pass: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val response = authApi.login(account = account, passwd = password)
+            // 動的にRetrofit APIを作成
+            val api = VaultNetworkClient.createAuthApi(context, ip)
+            val response = api.login(account = account, passwd = pass)
             val body = response.body()
 
             if (response.isSuccessful && body?.success == true && body.data != null) {
+                // 成功したら、全ての情報をセキュアに保存
                 val sid = body.data.sid
+                authManager.saveCredentials(ip, account, pass)
                 authManager.saveSessionId(sid)
                 Result.success(sid)
             } else {

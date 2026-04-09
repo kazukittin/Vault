@@ -13,7 +13,9 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun LoginScreen(
-    onLoginClick: (ip: String, account: String, pass: String) -> Unit
+    loginState: LoginState,
+    onLoginClick: (ip: String, account: String, pass: String) -> Unit,
+    onSuccess: (sid: String) -> Unit
 ) {
     var nasIp by remember { mutableStateOf("") }
     var account by remember { mutableStateOf("") }
@@ -21,6 +23,13 @@ fun LoginScreen(
 
     val vaultSurface = Color(0xFF071327)
     val vaultPrimary = Color(0xFFA1CCED)
+
+    // ログイン成功時にすぐに画面遷移（または成功アクション）を呼ぶ
+    LaunchedEffect(loginState) {
+        if (loginState is LoginState.Success) {
+            onSuccess(loginState.sid)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -48,6 +57,14 @@ fun LoginScreen(
                     color = vaultPrimary
                 )
 
+                if (loginState is LoginState.Error) {
+                    Text(
+                        text = loginState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
                 OutlinedTextField(
                     value = nasIp,
                     onValueChange = { nasIp = it },
@@ -57,7 +74,8 @@ fun LoginScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = vaultPrimary,
                         unfocusedTextColor = Color.White
-                    )
+                    ),
+                    enabled = loginState !is LoginState.Loading
                 )
 
                 OutlinedTextField(
@@ -69,7 +87,8 @@ fun LoginScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = vaultPrimary,
                         unfocusedTextColor = Color.White
-                    )
+                    ),
+                    enabled = loginState !is LoginState.Loading
                 )
 
                 OutlinedTextField(
@@ -82,7 +101,8 @@ fun LoginScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = vaultPrimary,
                         unfocusedTextColor = Color.White
-                    )
+                    ),
+                    enabled = loginState !is LoginState.Loading
                 )
 
                 Button(
@@ -90,9 +110,18 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = vaultPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = vaultPrimary),
+                    enabled = loginState !is LoginState.Loading
                 ) {
-                    Text("Login to NAS", color = vaultSurface)
+                    if (loginState is LoginState.Loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = vaultSurface,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Login to NAS", color = vaultSurface)
+                    }
                 }
             }
         }

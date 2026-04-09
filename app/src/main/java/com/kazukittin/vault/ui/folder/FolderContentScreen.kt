@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -99,21 +100,41 @@ fun FolderContentScreen(
                             }
                         }
                     } else {
+                        val isVideo = item.name.lowercase().let { it.endsWith(".mp4") || it.endsWith(".mov") || it.endsWith(".avi") }
                         val url        = viewModel.getThumbnailUrl(item.path)
-                        val imageIndex = imageItems.indexOf(item)
+                        val mediaIndex = imageItems.indexOf(item)
 
-                        AsyncImage(
-                            model = url,
-                            contentDescription = item.name,
+                        Box(
                             modifier = Modifier
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(vaultContainer)
                                 .clickable {
-                                    if (imageIndex >= 0) onPhotoClick(imageIndex)
-                                },
-                            contentScale = ContentScale.Crop
-                        )
+                                    if (mediaIndex >= 0) onPhotoClick(mediaIndex)
+                                }
+                        ) {
+                            AsyncImage(
+                                model = url,
+                                contentDescription = item.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                            if (isVideo) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                                        .padding(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        contentDescription = "Video",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

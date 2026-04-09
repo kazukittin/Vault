@@ -19,6 +19,11 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.kazukittin.vault.ui.folder.FolderContentViewModel
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -68,118 +73,153 @@ fun PhotoViewerScreen(
             val item = imageItems[page]
             val imageUrl = viewModel.getOriginalImageUrl(item.path)
 
-            // State オブジェクト（安定した参照）でズーム・パン状態を保持
-            val scaleState  = remember { mutableFloatStateOf(1f) }
-            val offsetState = remember { mutableStateOf(Offset.Zero) }
+            val isVideo = item.name.lowercase().let { it.endsWith(".mp4") || it.endsWith(".mov") || it.endsWith(".avi") }
 
-            // scaleが変わったらPagerの許可フラグを更新
-            LaunchedEffect(scaleState.floatValue) {
-                if (page == pagerState.currentPage) {
-                    isPagingEnabled = scaleState.floatValue <= 1f
+            if (isVideo && imageUrl != null) {
+                // 動画の場合はExoPlayerを表示（ズーム・パンは無効化）
+                VideoPlayer(
+                    videoUrl = imageUrl,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // 画像の場合はズーム・パン可能な表示
+                val scaleState  = remember { mutableFloatStateOf(1f) }
+                val offsetState = remember { mutableStateOf(Offset.Zero) }
+
+                LaunchedEffect(scaleState.floatValue) {
+                    if (page == pagerState.currentPage) {
+                        isPagingEnabled = scaleState.floatValue <= 1f
+                    }
                 }
-            }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        // awaitEachGesture: ジェスチャーごとに独立して処理
-                        awaitEachGesture {
-                            // 最初の指が置かれるまで待つ
-                            awaitFirstDown(requireUnconsumed = false)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
 
-                            var isTwoFinger      = false
-                            var prevDist         = -1f
-                            var prevCenter       = Offset.Zero
+                                var isTwoFinger      = false
+                                var prevDist         = -1f
+                                var prevCenter       = Offset.Zero
 
-                            // すべての指が離れるまでループ
-                            do {
-                                val event   = awaitPointerEvent()
-                                val pressed = event.changes.filter { it.pressed }
+                                do {
+                                    val event   = awaitPointerEvent()
+                                    val pressed = event.changes.filter { it.pressed }
 
-                                when {
-                                    // ── 2本指: ピンチズーム ＋ パン ──────────────
-                                    pressed.size >= 2 -> {
-                                        isTwoFinger = true
-                                        pressed.forEach { it.consume() }
+                                    when {
+                                        pressed.size >= 2 -> {
+                                            isTwoFinger = true
+                                            pressed.forEach { it.consume() }
 
-                                        val a = pressed[0].position
-                                        val b = pressed[1].position
-                                        val center = (a + b) / 2f
-                                        val dist = sqrt(
-                                            (a.x - b.x) * (a.x - b.x) +
-                                            (a.y - b.y) * (a.y - b.y)
-                                        )
+                                            val a = pressed[0].position
+                                            val b = pressed[1].position
+                                            val center = (a + b) / 2f
+                                            val dist = sqrt(
+                                                (a.x - b.x) * (a.x - b.x) +
+                                                (a.y - b.y) * (a.y - b.y)
+                                            )
 
-                                        if (prevDist > 0) {
-                                            val zoomDelta = dist / prevDist
-                                            val newScale  = max(1f, min(scaleState.floatValue * zoomDelta, 5f))
-                                            scaleState.floatValue = newScale
+                                            if (prevDist > 0) {
+                                                val zoomDelta = dist / prevDist
+                                                val newScale  = max(1f, min(scaleState.floatValue * zoomDelta, 5f))
+                                                scaleState.floatValue = newScale
 
-                                            if (newScale > 1f) {
-                                                val panDelta = center - prevCenter
-                                                val maxX = (size.width  * (newScale - 1f)) / 2f
-                                                val maxY = (size.height * (newScale - 1f)) / 2f
-                                                val cur  = offsetState.value
-                                                offsetState.value = Offset(
-                                                    (cur.x + panDelta.x).coerceIn(-maxX, maxX),
-                                                    (cur.y + panDelta.y).coerceIn(-maxY, maxY)
-                                                )
-                                            } else {
-                                                offsetState.value = Offset.Zero
+                                                if (newScale > 1f) {
+                                                    val panDelta = center - prevCenter
+                                                    val maxX = (size.width  * (newScale - 1f)) / 2f
+                                                    val maxY = (size.height * (newScale - 1f)) / 2f
+                                                    val cur  = offsetState.value
+                                                    offsetState.value = Offset(
+                                                        (cur.x + panDelta.x).coerceIn(-maxX, maxX),
+                                                        (cur.y + panDelta.y).coerceIn(-maxY, maxY)
+                                                    )
+                                                } else {
+                                                    offsetState.value = Offset.Zero
+                                                }
                                             }
+                                            prevDist   = dist
+                                            prevCenter = center
                                         }
-                                        prevDist   = dist
-                                        prevCenter = center
+
+                                        pressed.size == 1 && !isTwoFinger && scaleState.floatValue > 1f -> {
+                                            val change = pressed[0]
+                                            val delta  = change.positionChange()
+                                            change.consume()
+
+                                            val s    = scaleState.floatValue
+                                            val maxX = (size.width  * (s - 1f)) / 2f
+                                            val maxY = (size.height * (s - 1f)) / 2f
+                                            val cur  = offsetState.value
+                                            offsetState.value = Offset(
+                                                (cur.x + delta.x).coerceIn(-maxX, maxX),
+                                                (cur.y + delta.y).coerceIn(-maxY, maxY)
+                                            )
+                                        }
+
+                                        else -> { }
                                     }
+                                } while (event.changes.any { it.pressed })
 
-                                    // ── 1本指 + ズーム中: パン ──────────────────
-                                    pressed.size == 1 && !isTwoFinger && scaleState.floatValue > 1f -> {
-                                        val change = pressed[0]
-                                        val delta  = change.positionChange()
-                                        change.consume()
-
-                                        val s    = scaleState.floatValue
-                                        val maxX = (size.width  * (s - 1f)) / 2f
-                                        val maxY = (size.height * (s - 1f)) / 2f
-                                        val cur  = offsetState.value
-                                        offsetState.value = Offset(
-                                            (cur.x + delta.x).coerceIn(-maxX, maxX),
-                                            (cur.y + delta.y).coerceIn(-maxY, maxY)
-                                        )
-                                    }
-
-                                    // ── 1本指 + 等倍: Pagerに任せる（消費しない）
-                                    else -> { /* no-op: HorizontalPager がスワイプを処理 */ }
+                                if (scaleState.floatValue <= 1f) {
+                                    offsetState.value = Offset.Zero
                                 }
-                            } while (event.changes.any { it.pressed })
-
-                            // 2本指ジェスチャー後に等倍に戻ったらオフセットリセット
-                            if (scaleState.floatValue <= 1f) {
-                                offsetState.value = Offset.Zero
                             }
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (imageUrl != null) {
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = item.name,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(
-                                scaleX = scaleState.floatValue,
-                                scaleY = scaleState.floatValue,
-                                translationX = offsetState.value.x,
-                                translationY = offsetState.value.y
-                            ),
-                        contentScale = ContentScale.Fit
-                    )
-                } else {
-                    Text("画像を読み込めませんでした", color = vaultPrimary)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (imageUrl != null) {
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = item.name,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(
+                                    scaleX = scaleState.floatValue,
+                                    scaleY = scaleState.floatValue,
+                                    translationX = offsetState.value.x,
+                                    translationY = offsetState.value.y
+                                ),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text("画像を読み込めませんでした", color = vaultPrimary)
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    
+    // ExoPlayerのインスタンス作成と設定
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(videoUrl)
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true // 自動再生
+        }
+    }
+
+    // 画面から離れる時にリソースを解放
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
+    // AndroidViewを使ってExoPlayerを表示
+    AndroidView(
+        factory = { ctx ->
+            PlayerView(ctx).apply {
+                player = exoPlayer
+                useController = true // シークバーや再生ボタンを表示
+            }
+        },
+        modifier = modifier.background(Color.Black)
+    )
 }

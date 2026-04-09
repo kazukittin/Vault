@@ -40,23 +40,47 @@ class AudioPlayerViewModel(
     private val _currentWork = MutableStateFlow<WorkEntity?>(null)
     val currentWork = _currentWork.asStateFlow()
 
+    private val _playbackError = MutableStateFlow<String?>(null)
+    val playbackError = _playbackError.asStateFlow()
+
+    private var pendingPlayRequest: PendingPlayRequest? = null
+
+    data class PendingPlayRequest(
+        val work: WorkEntity,
+        val tracks: List<TrackEntity>,
+        val startIndex: Int
+    )
+
     fun initController(context: Context) {
         if (controller != null) return
 
         val sessionToken = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture?.addListener({
-            controller = controllerFuture?.get()
-            controller?.addListener(object : Player.Listener {
+            val c = controllerFuture?.get() ?: return@addListener
+            controller = c
+            c.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     _isPlaying.value = isPlaying
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    _currentTrackIndex.value = controller?.currentMediaItemIndex ?: 0
-                    _duration.value = controller?.duration ?: 0L
+                    _currentTrackIndex.value = c.currentMediaItemIndex
+                    _duration.value = c.duration
+                    _playbackError.value = null // Clear error on skip
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    android.util.Log.e("AudioPlayerViewModel", "Player Error: ${error.message}", error)
+                    _playbackError.value = "Playback Error: ${error.message}"
                 }
             })
-            _isPlaying.value = controller?.isPlaying ?: false
+            _isPlaying.value = c.isPlaying
+            
+            // Check for pending request
+            pendingPlayRequest?.let {
+                playTracksInternal(it.work, it.tracks, it.startIndex)
+                pendingPlayRequest = null
+            }
+
             syncPosition()
         }, MoreExecutors.directExecutor())
     }
@@ -72,13 +96,30 @@ class AudioPlayerViewModel(
     }
 
     fun playTracks(work: WorkEntity, tracks: List<TrackEntity>, startIndex: Int) {
+        if (controller == null) {
+            pendingPlayRequest = PendingPlayRequest(work, tracks, startIndex)
+        } else {
+            playTracksInternal(work, tracks, startIndex)
+        }
+    }
+
+    private fun playTracksInternal(work: WorkEntity, tracks: List<TrackEntity>, startIndex: Int) {
         _currentWork.value = work
         val mediaItems = tracks.map { track ->
             val url = audioRepository.getDownloadUrl(track.path) ?: ""
-            MediaItem.Builder()
-                .setMediaId(track.path)
-                .setUri(url)
-                .build()
+            android.util.Log.d("AudioPlayerViewModel", "Playing track: ${track.title} URL: $url")
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(work.circle)
+                .setAlbumTitle(work.title)
+                .setArtworkUri(android.net.Uri.parse(work.coverUrl ?: ""))
+                .build().let { metadata ->
+                    MediaItem.Builder()
+                        .setMediaId(track.path)
+                        .setUri(url)
+                        .setMediaMetadata(metadata)
+                        .build()
+                }
         }
 
         controller?.setMediaItems(mediaItems, startIndex, 0L)

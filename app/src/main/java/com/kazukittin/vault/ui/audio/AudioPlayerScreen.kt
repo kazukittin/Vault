@@ -35,6 +35,7 @@ fun AudioPlayerScreen(
     val position by viewModel.position.collectAsState()
     val duration by viewModel.duration.collectAsState()
     val work by viewModel.currentWork.collectAsState()
+    val playbackError by viewModel.playbackError.collectAsState()
 
     val vaultSurface = Color(0xFF071327)
     val vaultPrimary = Color(0xFFA1CCED)
@@ -91,6 +92,16 @@ fun AudioPlayerScreen(
                 color = vaultPrimary,
                 fontSize = 16.sp
             )
+
+            if (playbackError != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = playbackError!!,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             Spacer(modifier = Modifier.height(48.dp))
 

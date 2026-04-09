@@ -123,7 +123,7 @@ class AudioRepository(
     fun getDownloadUrl(path: String): String? {
         val ip = authManager.getNasIp() ?: return null
         val sid = authManager.getSessionId() ?: return null
-        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8").replace("+", "%20")
         return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=$encodedPath&mode=download&_sid=$sid"
     }
 }

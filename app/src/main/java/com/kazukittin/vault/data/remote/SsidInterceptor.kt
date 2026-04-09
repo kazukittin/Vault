@@ -13,15 +13,17 @@ class SsidInterceptor(
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        if (!isConnectedToWifi(context)) {
-            // Wi-Fiに繋がっていない場合は通信を行わずエラーを投げる
-            throw IOException("Wi-Fiに接続されていません。自宅のWi-Fiに接続してください。")
-        }
+        val request = chain.request()
+        val url = request.url.toString()
 
-        // ※Android 10以降で正確なSSIDを取得するには位置情報権限(ACCESS_FINE_LOCATION)が必要です。
-        // 将来的に厳格なSSIDチェックを行う場合は、ここにSSIDの判定処理を追加します。
+        // NASへのリクエスト（例: 5000番ポート）の場合のみWi-Fiチェックを行う
+        if (url.contains(":5000")) {
+            if (!isConnectedToWifi(context)) {
+                throw IOException("Wi-Fiに接続されていません。NASにアクセスするには自宅のWi-Fiに接続してください。")
+            }
+        }
         
-        return chain.proceed(chain.request())
+        return chain.proceed(request)
     }
 
     private fun isConnectedToWifi(context: Context): Boolean {

@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
 
                     // AudioPlayerViewModel is shared
                     val audioPlayerViewModel: com.kazukittin.vault.ui.audio.AudioPlayerViewModel = viewModel(factory = viewModelFactory)
+                    audioPlayerViewModel.initController(applicationContext)
 
                     NavHost(navController = navController, startDestination = startDest) {
 

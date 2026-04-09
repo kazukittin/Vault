@@ -21,8 +21,7 @@ import com.kazukittin.vault.data.local.db.FolderEntity
 @Composable
 fun HomeScreen(
     pinnedCollections: List<FolderEntity>,
-    allCollections: List<FolderEntity>,
-    onAddClick: () -> Unit
+    allCollections: List<FolderEntity>
 ) {
     val vaultSurface = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)
@@ -34,11 +33,6 @@ fun HomeScreen(
                 title = { Text("Vault", color = vaultPrimary) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = vaultSurface)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick, containerColor = vaultPrimary) {
-                Icon(Icons.Default.Add, contentDescription = "Add", tint = vaultSurface)
-            }
         },
         containerColor = vaultSurface
     ) { padding ->

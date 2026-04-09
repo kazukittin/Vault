@@ -96,10 +96,7 @@ class MainActivity : ComponentActivity() {
 
                                 HomeScreen(
                                     pinnedCollections = pinnedFolders,
-                                    allCollections = allFolders,
-                                    onAddClick = {
-                                        Toast.makeText(this@MainActivity, "フォルダ追加クリック", Toast.LENGTH_SHORT).show()
-                                    }
+                                    allCollections = allFolders
                                 )
                             }
                         }

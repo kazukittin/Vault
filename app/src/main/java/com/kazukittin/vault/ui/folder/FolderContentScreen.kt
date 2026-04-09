@@ -20,10 +20,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolderContentScreen(
     folderName: String,
@@ -41,20 +40,31 @@ fun FolderContentScreen(
     val vaultContainer = Color(0xFF142034)
     val vaultPrimary   = Color(0xFFA1CCED)
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(vaultSurface)
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                color = vaultPrimary,
-                modifier = Modifier.align(Alignment.Center)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(folderName, color = Color.White) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = vaultSurface)
             )
+        },
+        containerColor = vaultSurface
+    ) { padding ->
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = vaultPrimary)
+            }
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(top = 48.dp, start = 4.dp, end = 4.dp, bottom = 4.dp),
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding() + 4.dp,
+                    start = 4.dp, end = 4.dp, bottom = 4.dp
+                ),
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -107,33 +117,6 @@ fun FolderContentScreen(
                     }
                 }
             }
-        }
-
-        // 小さなオーバーレイ戻るボタン（左上に常時表示）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .height(40.dp)
-                .background(Color(0x99071327))
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Text(
-                text = folderName,
-                color = Color.White,
-                fontSize = 13.sp,
-                maxLines = 1,
-                modifier = Modifier.weight(1f).padding(end = 8.dp)
-            )
         }
     }
 }

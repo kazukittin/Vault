@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kazukittin.vault.data.local.db.FolderEntity
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     pinnedCollections: List<FolderEntity>,
@@ -23,25 +24,39 @@ fun HomeScreen(
 ) {
     val vaultSurface   = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)
+    val vaultPrimary   = Color(0xFFA1CCED)
 
     // pinnedとallを単純に結合して1つのグリッドで表示
     val allFolders = (pinnedCollections + allCollections).distinctBy { it.id }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .background(vaultSurface),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        items(allFolders) { folder ->
-            CollectionCard(
-                folder = folder,
-                containerColor = vaultContainer,
-                onClick = { onFolderClick(folder.id, folder.name) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Vault", color = vaultPrimary) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = vaultSurface)
             )
+        },
+        containerColor = vaultSurface
+    ) { padding ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(
+                top = padding.calculateTopPadding() + 16.dp,
+                start = 16.dp, end = 16.dp, bottom = 16.dp
+            ),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(vaultSurface),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(allFolders) { folder ->
+                CollectionCard(
+                    folder = folder,
+                    containerColor = vaultContainer,
+                    onClick = { onFolderClick(folder.id, folder.name) }
+                )
+            }
         }
     }
 }

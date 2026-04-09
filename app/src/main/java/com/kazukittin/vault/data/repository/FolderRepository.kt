@@ -29,15 +29,15 @@ class FolderRepository(
                 val response = photosApi.getFolders(sessionId = sid)
                 
                 if (response.success && response.data != null) {
-                    val networkFolders = response.data.list
+                    val networkFolders = response.data.shares ?: emptyList()
                     Log.d("FolderRepository", "取得成功! 件数: \${networkFolders.size}")
                     
                     // サーバーから来たデータをRoom用（FolderEntity）に変換
                     val entities = networkFolders.map { syno ->
                         FolderEntity(
-                            id = syno.id,
+                            id = syno.path,
                             name = syno.name,
-                            parentId = syno.parent,
+                            parentId = "/", // Route node
                             isPinned = false
                         )
                     }

@@ -2,13 +2,12 @@ package com.kazukittin.vault.ui.viewer
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,14 +15,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kazukittin.vault.ui.folder.FolderContentViewModel
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -53,14 +51,14 @@ fun PhotoViewerScreen(
         pageCount = { imageItems.size }
     )
 
-    val currentFileName = imageItems.getOrNull(pagerState.currentPage)?.name ?: ""
-
-    // Pagerのスクロール許可フラグ（ズーム中は禁止）
+    // ズーム中はPagerのスクロールを止める
     var isPagingEnabled by remember { mutableStateOf(true) }
 
-    Box(modifier = Modifier.fillMaxSize().background(vaultSurface)) {
-
-        // ───── ページャー本体（全画面） ─────
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(vaultSurface)
+    ) {
         HorizontalPager(
             state = pagerState,
             userScrollEnabled = isPagingEnabled,
@@ -70,11 +68,11 @@ fun PhotoViewerScreen(
             val item = imageItems[page]
             val imageUrl = viewModel.getOriginalImageUrl(item.path)
 
-            // ★ State オブジェクトをキャプチャすることで
-            //   pointerInput(Unit) 内でも常に最新値を参照できる
-            val scaleState = remember { mutableFloatStateOf(1f) }
+            // State オブジェクト（安定した参照）でズーム・パン状態を保持
+            val scaleState  = remember { mutableFloatStateOf(1f) }
             val offsetState = remember { mutableStateOf(Offset.Zero) }
 
+            // scaleが変わったらPagerの許可フラグを更新
             LaunchedEffect(scaleState.floatValue) {
                 if (page == pagerState.currentPage) {
                     isPagingEnabled = scaleState.floatValue <= 1f
@@ -85,21 +83,79 @@ fun PhotoViewerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            // State オブジェクト経由で読み書きするので常に最新値
-                            val currentScale = scaleState.floatValue
-                            val newScale = max(1f, min(currentScale * zoom, 5f))
-                            scaleState.floatValue = newScale
+                        // awaitEachGesture: ジェスチャーごとに独立して処理
+                        awaitEachGesture {
+                            // 最初の指が置かれるまで待つ
+                            awaitFirstDown(requireUnconsumed = false)
 
-                            if (newScale > 1f) {
-                                val maxX = (size.width * (newScale - 1f)) / 2f
-                                val maxY = (size.height * (newScale - 1f)) / 2f
-                                val cur = offsetState.value
-                                offsetState.value = Offset(
-                                    x = (cur.x + pan.x).coerceIn(-maxX, maxX),
-                                    y = (cur.y + pan.y).coerceIn(-maxY, maxY)
-                                )
-                            } else {
+                            var isTwoFinger      = false
+                            var prevDist         = -1f
+                            var prevCenter       = Offset.Zero
+
+                            // すべての指が離れるまでループ
+                            do {
+                                val event   = awaitPointerEvent()
+                                val pressed = event.changes.filter { it.pressed }
+
+                                when {
+                                    // ── 2本指: ピンチズーム ＋ パン ──────────────
+                                    pressed.size >= 2 -> {
+                                        isTwoFinger = true
+                                        pressed.forEach { it.consume() }
+
+                                        val a = pressed[0].position
+                                        val b = pressed[1].position
+                                        val center = (a + b) / 2f
+                                        val dist = sqrt(
+                                            (a.x - b.x) * (a.x - b.x) +
+                                            (a.y - b.y) * (a.y - b.y)
+                                        )
+
+                                        if (prevDist > 0) {
+                                            val zoomDelta = dist / prevDist
+                                            val newScale  = max(1f, min(scaleState.floatValue * zoomDelta, 5f))
+                                            scaleState.floatValue = newScale
+
+                                            if (newScale > 1f) {
+                                                val panDelta = center - prevCenter
+                                                val maxX = (size.width  * (newScale - 1f)) / 2f
+                                                val maxY = (size.height * (newScale - 1f)) / 2f
+                                                val cur  = offsetState.value
+                                                offsetState.value = Offset(
+                                                    (cur.x + panDelta.x).coerceIn(-maxX, maxX),
+                                                    (cur.y + panDelta.y).coerceIn(-maxY, maxY)
+                                                )
+                                            } else {
+                                                offsetState.value = Offset.Zero
+                                            }
+                                        }
+                                        prevDist   = dist
+                                        prevCenter = center
+                                    }
+
+                                    // ── 1本指 + ズーム中: パン ──────────────────
+                                    pressed.size == 1 && !isTwoFinger && scaleState.floatValue > 1f -> {
+                                        val change = pressed[0]
+                                        val delta  = change.positionChange()
+                                        change.consume()
+
+                                        val s    = scaleState.floatValue
+                                        val maxX = (size.width  * (s - 1f)) / 2f
+                                        val maxY = (size.height * (s - 1f)) / 2f
+                                        val cur  = offsetState.value
+                                        offsetState.value = Offset(
+                                            (cur.x + delta.x).coerceIn(-maxX, maxX),
+                                            (cur.y + delta.y).coerceIn(-maxY, maxY)
+                                        )
+                                    }
+
+                                    // ── 1本指 + 等倍: Pagerに任せる（消費しない）
+                                    else -> { /* no-op: HorizontalPager がスワイプを処理 */ }
+                                }
+                            } while (event.changes.any { it.pressed })
+
+                            // 2本指ジェスチャー後に等倍に戻ったらオフセットリセット
+                            if (scaleState.floatValue <= 1f) {
                                 offsetState.value = Offset.Zero
                             }
                         }
@@ -124,34 +180,6 @@ fun PhotoViewerScreen(
                     Text("画像を読み込めませんでした", color = vaultPrimary)
                 }
             }
-        }
-
-        // ───── 小さなオーバーレイヘッダー（Pagerの上に重ねる） ─────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .background(Color(0x88000000)) // 半透明の黒
-                .height(40.dp)
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Text(
-                text = currentFileName,
-                color = Color.White,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(end = 8.dp)
-            )
         }
     }
 }

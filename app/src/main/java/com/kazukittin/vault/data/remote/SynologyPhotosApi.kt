@@ -9,7 +9,7 @@ interface SynologyPhotosApi {
     /**
      * Synology Photosのフォルダリストを取得する（Personal Space）
      */
-    @GET("webapi/entry.cgi")
+    @GET("photo/webapi/entry.cgi")
     suspend fun getFolders(
         @Query("api") api: String = "SYNO.Foto.Browse.Folder",
         @Query("version") version: Int = 1,
@@ -22,7 +22,12 @@ interface SynologyPhotosApi {
 
 data class FolderResponse(
     @SerializedName("success") val success: Boolean,
-    @SerializedName("data") val data: FolderData?
+    @SerializedName("data") val data: FolderData?,
+    @SerializedName("error") val error: FolderError?
+)
+
+data class FolderError(
+    @SerializedName("code") val code: Int
 )
 
 data class FolderData(

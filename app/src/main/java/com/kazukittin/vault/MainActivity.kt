@@ -34,11 +34,25 @@ class MainActivity : ComponentActivity() {
         val authManager = VaultAuthManager(applicationContext)
         val authRepository = AuthRepository(authManager)
         
+        // --- ここから追加 ---
+        // IPアドレスは本来 authManagerから取得するか、キャッシュから取るべきですが
+        // とりあえず SharedPreferences から最後に成功したIPを取り出せるようにしておきます。
+        // Phase 3で拡張するため、ここでは一旦簡易的に取得します。
+        val savedIp = authManager.getNasIp() ?: "192.168.10.115"
+        val photosApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createPhotosApi(applicationContext, savedIp)
+        val db = com.kazukittin.vault.data.local.db.VaultDatabase.getDatabase(applicationContext)
+        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, db.folderDao())
+        // --- ここまで追加 ---
+
         val viewModelFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
                     @Suppress("UNCHECKED_CAST")
                     return LoginViewModel(authRepository) as T
+                }
+                if (modelClass.isAssignableFrom(com.kazukittin.vault.ui.home.HomeViewModel::class.java)) {
+                    @Suppress("UNCHECKED_CAST")
+                    return com.kazukittin.vault.ui.home.HomeViewModel(folderRepository) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class")
             }
@@ -76,10 +90,13 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable("home") {
-                                // 今はまだダミーのリストを渡しています (Phase 3でRoomと連動させます)
+                                val homeViewModel: com.kazukittin.vault.ui.home.HomeViewModel = viewModel(factory = viewModelFactory)
+                                val allFolders by homeViewModel.allFolders.collectAsState()
+                                val pinnedFolders by homeViewModel.pinnedFolders.collectAsState()
+
                                 HomeScreen(
-                                    pinnedCollections = emptyList(),
-                                    allCollections = emptyList(),
+                                    pinnedCollections = pinnedFolders,
+                                    allCollections = allFolders,
                                     onAddClick = {
                                         Toast.makeText(this@MainActivity, "フォルダ追加クリック", Toast.LENGTH_SHORT).show()
                                     }

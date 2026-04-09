@@ -37,8 +37,8 @@ class FolderRepository(
                         FolderEntity(
                             id = syno.id,
                             name = syno.name,
-                            itemCount = 0, // 今はダミー、後に中身で更新
-                            isPinned = false // とりあえず初期値
+                            parentId = syno.parent,
+                            isPinned = false
                         )
                     }
                     
@@ -46,7 +46,7 @@ class FolderRepository(
                     folderDao.insertFolders(entities)
                     Log.d("FolderRepository", "DBへの保存が完了しました")
                 } else {
-                    Log.e("FolderRepository", "APIリクエスト失敗: success = false")
+                    Log.e("FolderRepository", "APIリクエスト失敗: success = false, error code = \${response.error?.code}")
                 }
             } catch (e: Exception) {
                 Log.e("FolderRepository", "フォルダ同期エラー: \${e.message}", e)

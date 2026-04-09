@@ -34,4 +34,14 @@ object VaultNetworkClient {
 
         return retrofit.create(SynologyAuthApi::class.java)
     }
+
+    fun createPhotosApi(context: Context, nasIp: String): SynologyPhotosApi {
+        val retrofit = Retrofit.Builder()
+            .baseUrl("http://$nasIp:5000/")
+            .client(getOkHttpClient(context))
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+        return retrofit.create(SynologyPhotosApi::class.java)
+    }
 }

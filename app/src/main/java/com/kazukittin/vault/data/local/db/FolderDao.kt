@@ -15,8 +15,8 @@ interface FolderDao {
     fun getAllFolders(): Flow<List<FolderEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFolders(folders: List<FolderEntity>)
+    fun insertFolders(folders: List<FolderEntity>) // suspendを外す一時的な回避
 
     @Query("DELETE FROM folders")
-    suspend fun clearAll()
+    fun clearAll() // suspendを外す一時的な回避
 }

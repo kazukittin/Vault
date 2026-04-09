@@ -196,8 +196,15 @@ class MainActivity : ComponentActivity() {
                             com.kazukittin.vault.ui.audio.AudioDetailScreen(
                                 viewModel = detailViewModel,
                                 onTrackClick = { tracks, index ->
-                                    val work = detailViewModel.work.value ?: return@AudioDetailScreen
+                                    val work = detailViewModel.work.value ?: run {
+                                        Toast.makeText(this@MainActivity, "ERROR: Work data null", Toast.LENGTH_SHORT).show()
+                                        return@AudioDetailScreen
+                                    }
+                                    Toast.makeText(this@MainActivity, "曲をタップしました: ${tracks[index].title}", Toast.LENGTH_SHORT).show()
+                                    android.util.Log.e("VaultDebug", ">>> TRACK CLICKED: ${tracks[index].title}")
                                     audioPlayerViewModel.playTracks(work, tracks, index)
+                                    Toast.makeText(this@MainActivity, "再生画面へ遷移します...", Toast.LENGTH_SHORT).show()
+                                    android.util.Log.e("VaultDebug", ">>> NAVIGATING TO PLAYER")
                                     navController.navigate("audio_player")
                                 },
                                 onBack = { navController.popBackStack() }

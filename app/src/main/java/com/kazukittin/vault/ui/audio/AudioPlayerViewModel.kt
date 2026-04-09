@@ -52,37 +52,49 @@ class AudioPlayerViewModel(
     )
 
     fun initController(context: Context) {
-        if (controller != null) return
+        android.util.Log.e("VaultDebug", "initController called")
+        if (controller != null) {
+            android.util.Log.e("VaultDebug", "Controller already exists")
+            return
+        }
 
         val sessionToken = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture?.addListener({
-            val c = controllerFuture?.get() ?: return@addListener
-            controller = c
-            c.addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    _isPlaying.value = isPlaying
+            try {
+                val c = controllerFuture?.get() ?: return@addListener
+                controller = c
+                android.util.Log.e("VaultDebug", "MediaController connected SUCCESS")
+                
+                c.addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        _isPlaying.value = isPlaying
+                        android.util.Log.e("VaultDebug", "onIsPlayingChanged: $isPlaying")
+                    }
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        _currentTrackIndex.value = c.currentMediaItemIndex
+                        _duration.value = c.duration
+                        _playbackError.value = null
+                        android.util.Log.e("VaultDebug", "onMediaItemTransition index=${c.currentMediaItemIndex}")
+                    }
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        android.util.Log.e("VaultDebug", "PLAYER ERROR: ${error.message}", error)
+                        _playbackError.value = "Playback Error: ${error.message}"
+                    }
+                })
+                _isPlaying.value = c.isPlaying
+                
+                pendingPlayRequest?.let {
+                    android.util.Log.e("VaultDebug", "Processing pendings for ${it.work.title}")
+                    playTracksInternal(it.work, it.tracks, it.startIndex)
+                    pendingPlayRequest = null
                 }
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    _currentTrackIndex.value = c.currentMediaItemIndex
-                    _duration.value = c.duration
-                    _playbackError.value = null // Clear error on skip
-                }
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    android.util.Log.e("AudioPlayerViewModel", "Player Error: ${error.message}", error)
-                    _playbackError.value = "Playback Error: ${error.message}"
-                }
-            })
-            _isPlaying.value = c.isPlaying
-            
-            // Check for pending request
-            pendingPlayRequest?.let {
-                playTracksInternal(it.work, it.tracks, it.startIndex)
-                pendingPlayRequest = null
-            }
 
-            syncPosition()
-        }, MoreExecutors.directExecutor())
+                syncPosition()
+            } catch (e: Exception) {
+                android.util.Log.e("VaultDebug", "Failed to connect MediaController", e)
+            }
+        }, context.mainExecutor)
     }
 
     private fun syncPosition() {
@@ -96,7 +108,9 @@ class AudioPlayerViewModel(
     }
 
     fun playTracks(work: WorkEntity, tracks: List<TrackEntity>, startIndex: Int) {
+        android.util.Log.e("VaultDebug", "playTracks called: ${work.title}")
         if (controller == null) {
+            android.util.Log.e("VaultDebug", "Controller NULL, queuing...")
             pendingPlayRequest = PendingPlayRequest(work, tracks, startIndex)
         } else {
             playTracksInternal(work, tracks, startIndex)
@@ -104,10 +118,11 @@ class AudioPlayerViewModel(
     }
 
     private fun playTracksInternal(work: WorkEntity, tracks: List<TrackEntity>, startIndex: Int) {
+        android.util.Log.e("VaultDebug", "playTracksInternal executing")
         _currentWork.value = work
         val mediaItems = tracks.map { track ->
             val url = audioRepository.getDownloadUrl(track.path) ?: ""
-            android.util.Log.d("AudioPlayerViewModel", "Playing track: ${track.title} URL: $url")
+            android.util.Log.e("VaultDebug", "Track URL: $url")
             androidx.media3.common.MediaMetadata.Builder()
                 .setTitle(track.title)
                 .setArtist(work.circle)
@@ -125,6 +140,7 @@ class AudioPlayerViewModel(
         controller?.setMediaItems(mediaItems, startIndex, 0L)
         controller?.prepare()
         controller?.play()
+        android.util.Log.e("VaultDebug", "!!! controller.play() WAS CALLED !!!")
     }
 
     fun togglePlay() {

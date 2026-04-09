@@ -50,4 +50,13 @@ object VaultNetworkClient {
 
         return retrofit.create(SynologyPhotosApi::class.java)
     }
+
+    fun createDlSiteApi(): DlSiteApi {
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://www.dlsite.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+        return retrofit.create(DlSiteApi::class.java)
+    }
 }

@@ -33,20 +33,25 @@ class MainActivity : ComponentActivity() {
 
         val savedIp = authManager.getNasIp() ?: "192.168.10.115"
         val photosApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createPhotosApi(applicationContext, savedIp)
+        val dlSiteApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createDlSiteApi()
         val db = com.kazukittin.vault.data.local.db.VaultDatabase.getDatabase(applicationContext)
         val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, db.folderDao())
+        val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(authManager, photosApi, dlSiteApi, db.audioDao())
 
         val viewModelFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-                    @Suppress("UNCHECKED_CAST")
-                    return LoginViewModel(authRepository) as T
+                @Suppress("UNCHECKED_CAST")
+                return when {
+                    modelClass.isAssignableFrom(LoginViewModel::class.java) -> 
+                        LoginViewModel(authRepository) as T
+                    modelClass.isAssignableFrom(com.kazukittin.vault.ui.home.HomeViewModel::class.java) -> 
+                        com.kazukittin.vault.ui.home.HomeViewModel(folderRepository) as T
+                    modelClass.isAssignableFrom(com.kazukittin.vault.ui.audio.AudioLibraryViewModel::class.java) -> 
+                        com.kazukittin.vault.ui.audio.AudioLibraryViewModel(audioRepository) as T
+                    modelClass.isAssignableFrom(com.kazukittin.vault.ui.audio.AudioPlayerViewModel::class.java) -> 
+                        com.kazukittin.vault.ui.audio.AudioPlayerViewModel(audioRepository) as T
+                    else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
                 }
-                if (modelClass.isAssignableFrom(com.kazukittin.vault.ui.home.HomeViewModel::class.java)) {
-                    @Suppress("UNCHECKED_CAST")
-                    return com.kazukittin.vault.ui.home.HomeViewModel(folderRepository) as T
-                }
-                throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
 
@@ -56,6 +61,9 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
                     val startDest = if (authManager.getSessionId() != null) "home" else "login"
+
+                    // AudioPlayerViewModel is shared
+                    val audioPlayerViewModel: com.kazukittin.vault.ui.audio.AudioPlayerViewModel = viewModel(factory = viewModelFactory)
 
                     NavHost(navController = navController, startDestination = startDest) {
 
@@ -88,7 +96,8 @@ class MainActivity : ComponentActivity() {
                                     val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
                                     val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
                                     navController.navigate("folder/$encodedPath?name=$encodedName")
-                                }
+                                },
+                                onAudioClick = { navController.navigate("audio_library") }
                             )
                         }
 
@@ -154,6 +163,49 @@ class MainActivity : ComponentActivity() {
                             com.kazukittin.vault.ui.viewer.PhotoViewerScreen(
                                 viewModel = folderViewModel,
                                 initialIndex = startIndex,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("audio_library") {
+                            com.kazukittin.vault.ui.audio.AudioLibraryScreen(
+                                viewModel = viewModel(factory = viewModelFactory),
+                                onWorkClick = { work ->
+                                    val encoded = java.net.URLEncoder.encode(work.folderPath, "UTF-8")
+                                    navController.navigate("audio_detail/$encoded")
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("audio_detail/{workPath}") { backStackEntry ->
+                            val workPath = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("workPath") ?: "", "UTF-8")
+                            
+                            // Initialize with a factory to fetch the WorkEntity first or pass workPath to VM
+                            val detailViewModel: com.kazukittin.vault.ui.audio.AudioDetailViewModel = viewModel(
+                                key = workPath,
+                                factory = object : ViewModelProvider.Factory {
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        @Suppress("UNCHECKED_CAST")
+                                        return com.kazukittin.vault.ui.audio.AudioDetailViewModel(audioRepository, workPath) as T
+                                    }
+                                }
+                            )
+
+                            com.kazukittin.vault.ui.audio.AudioDetailScreen(
+                                viewModel = detailViewModel,
+                                onTrackClick = { tracks, index ->
+                                    val work = detailViewModel.work.value ?: return@AudioDetailScreen
+                                    audioPlayerViewModel.playTracks(work, tracks, index)
+                                    navController.navigate("audio_player")
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("audio_player") {
+                            com.kazukittin.vault.ui.audio.AudioPlayerScreen(
+                                viewModel = audioPlayerViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }

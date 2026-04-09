@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -20,7 +22,8 @@ import com.kazukittin.vault.data.local.db.FolderEntity
 fun HomeScreen(
     pinnedCollections: List<FolderEntity>,
     allCollections: List<FolderEntity>,
-    onFolderClick: (String, String) -> Unit
+    onFolderClick: (String, String) -> Unit,
+    onAudioClick: () -> Unit
 ) {
     val vaultSurface   = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)
@@ -33,6 +36,11 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Vault", color = vaultPrimary) },
+                actions = {
+                    IconButton(onClick = onAudioClick) {
+                        Icon(Icons.Default.MusicNote, contentDescription = "Audio Library", tint = vaultPrimary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = vaultSurface)
             )
         },

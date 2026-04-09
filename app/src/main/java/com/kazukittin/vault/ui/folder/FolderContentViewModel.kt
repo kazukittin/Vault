@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 class FolderContentViewModel(
     private val folderRepository: FolderRepository,
-    private val folderPath: String
+    val folderPath: String
 ) : ViewModel() {
 
     private val _items = MutableStateFlow<List<SynoFolder>>(emptyList())

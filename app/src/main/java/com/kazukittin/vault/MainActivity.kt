@@ -136,29 +136,38 @@ class MainActivity : ComponentActivity() {
                                         val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
                                         navController.navigate("folder/$encodedPath?name=$encodedName")
                                     },
-                                    onPhotoClick = { originalUrl, name ->
-                                        val encodedUrl = java.net.URLEncoder.encode(originalUrl, "UTF-8")
-                                        val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
-                                        navController.navigate("photo?url=$encodedUrl&name=$encodedName")
+                                    onPhotoClick = { index ->
+                                        val encodedPath = java.net.URLEncoder.encode(decodedPath, "UTF-8")
+                                        navController.navigate("photo?folderPath=$encodedPath&startIndex=$index")
                                     }
                                 )
                             }
 
                             composable(
-                                route = "photo?url={url}&name={name}",
+                                route = "photo?folderPath={folderPath}&startIndex={startIndex}",
                                 arguments = listOf(
-                                    androidx.navigation.navArgument("url") { type = androidx.navigation.NavType.StringType },
-                                    androidx.navigation.navArgument("name") { type = androidx.navigation.NavType.StringType; defaultValue = "Photo" }
+                                    androidx.navigation.navArgument("folderPath") { type = androidx.navigation.NavType.StringType },
+                                    androidx.navigation.navArgument("startIndex") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
                                 )
                             ) { backStackEntry ->
-                                val url = backStackEntry.arguments?.getString("url")
-                                val name = backStackEntry.arguments?.getString("name") ?: ""
-                                val decodedUrl = url?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                                val decodedName = java.net.URLDecoder.decode(name, "UTF-8")
+                                val folderPath = backStackEntry.arguments?.getString("folderPath") ?: ""
+                                val startIndex = backStackEntry.arguments?.getInt("startIndex") ?: 0
+                                val decodedPath = java.net.URLDecoder.decode(folderPath, "UTF-8")
+
+                                // FolderContentScreenで使ったのと同じViewModel（キャッシュ）を再取得
+                                val folderViewModel: com.kazukittin.vault.ui.folder.FolderContentViewModel = viewModel(
+                                    key = decodedPath,
+                                    factory = object : ViewModelProvider.Factory {
+                                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                            @Suppress("UNCHECKED_CAST")
+                                            return com.kazukittin.vault.ui.folder.FolderContentViewModel(folderRepository, decodedPath) as T
+                                        }
+                                    }
+                                )
 
                                 com.kazukittin.vault.ui.viewer.PhotoViewerScreen(
-                                    imageUrl = decodedUrl,
-                                    fileName = decodedName,
+                                    viewModel = folderViewModel,
+                                    initialIndex = startIndex,
                                     onBack = { navController.popBackStack() }
                                 )
                             }

@@ -30,10 +30,13 @@ fun FolderContentScreen(
     viewModel: FolderContentViewModel,
     onBack: () -> Unit,
     onFolderClick: (String, String) -> Unit,
-    onPhotoClick: (String, String) -> Unit
+    onPhotoClick: (Int) -> Unit
 ) {
     val items by viewModel.items.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    
+    // フォルダと画像を分ける（画像のインデックスを計算するため）
+    val imageItems = items.filter { !it.isDir }
     
     val vaultSurface = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)
@@ -89,6 +92,8 @@ fun FolderContentScreen(
                         // 画像表示 (サムネイル)
                         val url = viewModel.getThumbnailUrl(item.path)
                         val originalUrl = viewModel.getOriginalImageUrl(item.path)
+                        val imageIndex = imageItems.indexOf(item)
+                        
                         AsyncImage(
                             model = url,
                             contentDescription = item.name,
@@ -97,7 +102,7 @@ fun FolderContentScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(vaultContainer)
                                 .clickable { 
-                                    if (originalUrl != null) onPhotoClick(originalUrl, item.name) 
+                                    if (imageIndex >= 0) onPhotoClick(imageIndex) 
                                 },
                             contentScale = ContentScale.Crop
                         )

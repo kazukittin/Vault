@@ -13,8 +13,23 @@ class AudioRepository(
     private val authManager: VaultAuthManager,
     private val photosApi: SynologyPhotosApi,
     private val dlSiteApi: DlSiteApi,
-    val audioDao: AudioDao
+    val audioDao: AudioDao,
+    private val authRepository: com.kazukittin.vault.data.repository.AuthRepository
 ) {
+    private suspend fun withAuthRetry(apiCall: suspend (String) -> com.kazukittin.vault.data.remote.FolderResponse): com.kazukittin.vault.data.remote.FolderResponse {
+        val sid = authManager.getSessionId() ?: throw Exception("Not logged in")
+        var response = apiCall(sid)
+        if (!response.success && (response.error?.code == 105 || response.error?.code == 119)) {
+            Log.d("AudioRepository", "Session expired (${response.error?.code}). Attempting silent re-auth...")
+            val newSidResult = authRepository.reAuthenticate()
+            if (newSidResult.isSuccess) {
+                val newSid = newSidResult.getOrNull()!!
+                response = apiCall(newSid)
+            }
+        }
+        return response
+    }
+
     private val rjRegex = Regex("RJ(\\d{6,8})", RegexOption.IGNORE_CASE)
     private val knownTags = listOf("ASMR", "バイノーラル", "催眠", "耳舐め", "囁き", "睡眠", "耳かき", "添い寝")
 
@@ -38,8 +53,9 @@ class AudioRepository(
      * 指定されたルートフォルダ内をスキャンして作品を登録する
      */
     suspend fun scanAudioRoot(rootPath: String): Int = withContext(Dispatchers.IO) {
-        val sid = authManager.getSessionId() ?: return@withContext 0
-        val response = photosApi.getFolderContents(folderPath = rootPath, sessionId = sid)
+        val response = withAuthRetry { sid -> 
+            photosApi.getFolderContents(folderPath = rootPath, sessionId = sid)
+        }
         
         if (!response.success || response.data?.files == null) return@withContext 0
         
@@ -89,7 +105,7 @@ class AudioRepository(
                 audioDao.insertWork(work)
 
                 // 3. トラックのスキャン
-                scanTracks(folder.path, sid)
+                scanTracks(folder.path)
                 
                 count++
             } catch (e: Exception) {
@@ -99,8 +115,10 @@ class AudioRepository(
         count
     }
 
-    private suspend fun scanTracks(workPath: String, sid: String) {
-        val response = photosApi.getFolderContents(folderPath = workPath, sessionId = sid)
+    private suspend fun scanTracks(workPath: String) {
+        val response = withAuthRetry { sid ->
+            photosApi.getFolderContents(folderPath = workPath, sessionId = sid)
+        }
         if (!response.success || response.data?.files == null) return
 
         val audioFiles = response.data.files!!.filter { 

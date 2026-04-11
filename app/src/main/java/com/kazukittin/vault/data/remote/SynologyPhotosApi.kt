@@ -42,7 +42,8 @@ data class FolderError(
 
 data class FolderData(
     @SerializedName("shares") val shares: List<SynoFolder>?,
-    @SerializedName("files") val files: List<SynoFolder>?
+    @SerializedName("files") val files: List<SynoFolder>?,
+    @SerializedName("total") val total: Int = 0  // そのフォルダの全アイテム数
 )
 
 data class SynoFolder(

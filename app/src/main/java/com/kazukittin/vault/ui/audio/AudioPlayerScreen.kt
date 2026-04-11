@@ -39,11 +39,11 @@ fun AudioPlayerScreen(
     val work by viewModel.currentWork.collectAsState()
     val playbackError by viewModel.playbackError.collectAsState()
 
-    val vaultSurface = Color.Red // DEBUG: まっかっか
-    val vaultPrimary = Color.Yellow // DEBUG: きいろ
+    val vaultSurface = Color.Green // DEBUG: みどりいろ
+    val vaultPrimary = Color.Black // DEBUG: 黒（緑の上で見やすいように）
 
     LaunchedEffect(Unit) {
-        android.util.Log.e("VaultDebug", ">>> AudioPlayerScreen: Composition STARTED")
+        android.util.Log.wtf("VaultDebug", ">>> AudioPlayerScreen: COMPOSITION STARTED")
         viewModel.initController(context)
     }
 

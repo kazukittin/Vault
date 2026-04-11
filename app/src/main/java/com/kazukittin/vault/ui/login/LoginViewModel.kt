@@ -23,7 +23,7 @@ class LoginViewModel(
 
         _loginState.value = LoginState.Loading
         viewModelScope.launch {
-            val result = repository.loginFirstTime(context, ip, account, pass)
+            val result = repository.loginFirstTime(ip, account, pass)
             
             result.onSuccess { sid ->
                 _loginState.value = LoginState.Success(sid)

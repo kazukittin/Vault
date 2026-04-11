@@ -4,17 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,12 +37,32 @@ fun FolderContentScreen(
 ) {
     val items by viewModel.items.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasReachedEnd by viewModel.hasReachedEnd.collectAsState()
 
     val imageItems = items.filter { !it.isDir }
 
     val vaultSurface   = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)
     val vaultPrimary   = Color(0xFFA1CCED)
+
+    // グリッドのスクロール状態を監視して末尾に近づいたら次ページを読み込む
+    val gridState = rememberLazyGridState()
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val layoutInfo = gridState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            // 末尾から30件以内になったら次ページをプリフェッチ
+            lastVisible >= totalItems - 30 && totalItems > 0
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && !isLoadingMore && !hasReachedEnd) {
+            viewModel.loadNextPage()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -64,6 +84,7 @@ fun FolderContentScreen(
             }
         } else {
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Fixed(3),
                 contentPadding = PaddingValues(
                     top = padding.calculateTopPadding() + 4.dp,
@@ -110,7 +131,6 @@ fun FolderContentScreen(
                         val mediaIndex = imageItems.indexOf(item)
 
                         if (isVideo) {
-                            // 動画: サーバーサイドのサムネイル生成が遅いため即時プレースホルダーを表示
                             Box(
                                 modifier = Modifier
                                     .aspectRatio(1f)
@@ -150,7 +170,6 @@ fun FolderContentScreen(
                                 }
                             }
                         } else {
-                            // 写真: サムネイルをネットワークから取得
                             val url = viewModel.getThumbnailUrl(item.path)
                             AsyncImage(
                                 model = url,
@@ -165,6 +184,39 @@ fun FolderContentScreen(
                                 contentScale = ContentScale.Crop
                             )
                         }
+                    }
+                }
+
+                // 次ページ読み込み中のインジケーター（フル幅で表示）
+                if (isLoadingMore) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = vaultPrimary,
+                                modifier = Modifier.size(28.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+                }
+
+                // 全件読み込み完了メッセージ
+                if (hasReachedEnd && items.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = "全 ${items.size} 件を表示中",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }

@@ -122,12 +122,12 @@ class AudioPlayerViewModel(
         _currentWork.value = work
         val mediaItems = tracks.map { track ->
             val url = audioRepository.getDownloadUrl(track.path) ?: ""
-            android.util.Log.e("VaultDebug", "Track URL: $url")
+            android.util.Log.wtf("VaultDebug", "Ready to play URL: $url")
             androidx.media3.common.MediaMetadata.Builder()
                 .setTitle(track.title)
                 .setArtist(work.circle)
                 .setAlbumTitle(work.title)
-                .setArtworkUri(android.net.Uri.parse(work.coverUrl ?: ""))
+                // .setArtworkUri(android.net.Uri.parse(work.coverUrl ?: "")) // DEBUG: コメントアウト
                 .build().let { metadata ->
                     MediaItem.Builder()
                         .setMediaId(track.path)

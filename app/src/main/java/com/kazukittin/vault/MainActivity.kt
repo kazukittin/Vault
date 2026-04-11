@@ -29,14 +29,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val authManager = VaultAuthManager(applicationContext)
-        val authRepository = AuthRepository(authManager)
+        val authRepository = AuthRepository(authManager, applicationContext)
 
         val savedIp = authManager.getNasIp() ?: "192.168.10.115"
         val photosApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createPhotosApi(applicationContext, savedIp)
         val dlSiteApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createDlSiteApi()
         val db = com.kazukittin.vault.data.local.db.VaultDatabase.getDatabase(applicationContext)
-        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, db.folderDao())
-        val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(authManager, photosApi, dlSiteApi, db.audioDao())
+        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, db.folderDao(), authRepository)
+        val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(authManager, photosApi, dlSiteApi, db.audioDao(), authRepository)
 
         val viewModelFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     modelClass.isAssignableFrom(LoginViewModel::class.java) -> 
                         LoginViewModel(authRepository) as T
                     modelClass.isAssignableFrom(com.kazukittin.vault.ui.home.HomeViewModel::class.java) -> 
-                        com.kazukittin.vault.ui.home.HomeViewModel(folderRepository) as T
+                        com.kazukittin.vault.ui.home.HomeViewModel(folderRepository, authRepository) as T
                     modelClass.isAssignableFrom(com.kazukittin.vault.ui.audio.AudioLibraryViewModel::class.java) -> 
                         com.kazukittin.vault.ui.audio.AudioLibraryViewModel(audioRepository) as T
                     modelClass.isAssignableFrom(com.kazukittin.vault.ui.audio.AudioPlayerViewModel::class.java) -> 
@@ -201,10 +201,10 @@ class MainActivity : ComponentActivity() {
                                         return@AudioDetailScreen
                                     }
                                     Toast.makeText(this@MainActivity, "曲をタップしました: ${tracks[index].title}", Toast.LENGTH_SHORT).show()
-                                    android.util.Log.e("VaultDebug", ">>> TRACK CLICKED: ${tracks[index].title}")
+                                    android.util.Log.wtf("VaultDebug", ">>> TRACK CLICKED: ${tracks[index].title}")
                                     audioPlayerViewModel.playTracks(work, tracks, index)
                                     Toast.makeText(this@MainActivity, "再生画面へ遷移します...", Toast.LENGTH_SHORT).show()
-                                    android.util.Log.e("VaultDebug", ">>> NAVIGATING TO PLAYER")
+                                    android.util.Log.wtf("VaultDebug", ">>> NAVIGATING TO PLAYER")
                                     navController.navigate("audio_player")
                                 },
                                 onBack = { navController.popBackStack() }

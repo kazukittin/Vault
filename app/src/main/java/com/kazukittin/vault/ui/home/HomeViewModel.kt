@@ -3,13 +3,17 @@ package com.kazukittin.vault.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kazukittin.vault.data.local.db.FolderEntity
+import com.kazukittin.vault.data.repository.AuthRepository
 import com.kazukittin.vault.data.repository.FolderRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class HomeViewModel(private val folderRepository: FolderRepository) : ViewModel() {
+class HomeViewModel(
+    private val folderRepository: FolderRepository,
+    private val authRepository: AuthRepository
+) : ViewModel() {
 
     // DBから常に最新の「すべてのフォルダ」を受け取る
     val allFolders: StateFlow<List<FolderEntity>> = folderRepository.getAllFolders()
@@ -20,12 +24,9 @@ class HomeViewModel(private val folderRepository: FolderRepository) : ViewModel(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
-        // ViewModelが生成されたら（ホーム画面が開いたら）自動でNASへ同期しに行く
-        syncData()
-    }
-
-    private fun syncData() {
+        // 起動時: まずセッションを検証・必要なら自動再ログイン → その後データ同期
         viewModelScope.launch {
+            authRepository.validateOrRefreshSession()
             folderRepository.syncFolders()
         }
     }

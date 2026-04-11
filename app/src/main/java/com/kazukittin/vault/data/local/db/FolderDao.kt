@@ -17,6 +17,9 @@ interface FolderDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertFolders(folders: List<FolderEntity>) // suspendを外す一時的な回避
 
+    @Query("UPDATE folders SET category = :category WHERE id = :folderId")
+    fun updateCategory(folderId: String, category: String?)
+
     @Query("DELETE FROM folders")
     fun clearAll() // suspendを外す一時的な回避
 }

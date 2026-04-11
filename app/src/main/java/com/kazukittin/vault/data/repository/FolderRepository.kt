@@ -12,9 +12,19 @@ import kotlinx.coroutines.withContext
 class FolderRepository(
     private val authManager: VaultAuthManager,
     private val photosApi: SynologyPhotosApi,
+    private val dlSiteApi: com.kazukittin.vault.data.remote.DlSiteApi,
     private val folderDao: FolderDao,
     private val authRepository: com.kazukittin.vault.data.repository.AuthRepository
 ) {
+    /** DLsiteのメタデータを取得する */
+    suspend fun getDlSiteMetadata(rjCode: String) = withContext(Dispatchers.IO) {
+        try {
+            val response = dlSiteApi.getProductInfo(rjCode)
+            response[rjCode]
+        } catch (e: Exception) {
+            null
+        }
+    }
     private suspend fun withAuthRetry(apiCall: suspend (String) -> com.kazukittin.vault.data.remote.FolderResponse): com.kazukittin.vault.data.remote.FolderResponse {
         val sid = authManager.getSessionId() ?: throw Exception("Not logged in")
         var response = apiCall(sid)
@@ -147,5 +157,11 @@ class FolderRepository(
             java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") 
         }
         return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=$encodedPath&mode=download&_sid=$sid"
+    }
+
+    suspend fun updateFolderCategory(folderId: String, category: String?) {
+        withContext(Dispatchers.IO) {
+            folderDao.updateCategory(folderId, category)
+        }
     }
 }

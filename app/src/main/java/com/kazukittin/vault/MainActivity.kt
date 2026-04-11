@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         val photosApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createPhotosApi(applicationContext, savedIp)
         val dlSiteApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createDlSiteApi()
         val db = com.kazukittin.vault.data.local.db.VaultDatabase.getDatabase(applicationContext)
-        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, db.folderDao(), authRepository)
+        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, dlSiteApi, db.folderDao(), authRepository)
         val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(authManager, photosApi, dlSiteApi, db.audioDao(), authRepository)
 
         val viewModelFactory = object : ViewModelProvider.Factory {
@@ -107,7 +107,8 @@ class MainActivity : ComponentActivity() {
                                     val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
                                     navController.navigate("folder/$encodedPath?name=$encodedName")
                                 },
-                                onAudioClick = { navController.navigate("audio_library") }
+                                onAudioClick = { navController.navigate("audio_library") },
+                                onSetCategory = { id, cat -> homeViewModel.setFolderCategory(id, cat) }
                             )
                         }
 

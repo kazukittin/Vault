@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -38,10 +39,12 @@ fun FolderContentScreen(
     onPhotoClick: (Int) -> Unit,
     onZipClick: (path: String, name: String) -> Unit = { _, _ -> }
 ) {
-    val items by viewModel.items.collectAsState()
+    val items by viewModel.sortedItems.collectAsState() // ソート済みのアイテムを使用
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasReachedEnd by viewModel.hasReachedEnd.collectAsState()
+    val currentSortOrder by viewModel.sortOrder.collectAsState()
+    val metadataCache by viewModel.metadataCache.collectAsState()
 
     val imageItems = remember(items) { items.filter { !it.isDir } }
 
@@ -50,6 +53,11 @@ fun FolderContentScreen(
     val vaultPrimary   = Color(0xFFA1CCED)
 
     // グリッドのスクロール状態を監視して末尾に近づいたら次ページを読み込む
+    // データが更新されたらメタデータの取得を開始
+    LaunchedEffect(items) {
+        viewModel.fetchMetadataForRJItems()
+    }
+
     val gridState = rememberLazyGridState()
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -71,10 +79,42 @@ fun FolderContentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(folderName, color = Color.White) },
+                title = { Text(folderName, color = Color.White, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                },
+                actions = {
+                    var showSortMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showSortMenu = true }) {
+                        Text(
+                            when(currentSortOrder) {
+                                FolderContentViewModel.SortOrder.DEFAULT -> "≡"
+                                FolderContentViewModel.SortOrder.RJ_ASC -> "RJ↑"
+                                FolderContentViewModel.SortOrder.RJ_DESC -> "RJ↓"
+                            },
+                            color = vaultPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false },
+                        modifier = Modifier.background(vaultContainer)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("デフォルト順", color = Color.White) },
+                            onClick = { viewModel.changeSortOrder(FolderContentViewModel.SortOrder.DEFAULT); showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("RJコード昇順", color = Color.White) },
+                            onClick = { viewModel.changeSortOrder(FolderContentViewModel.SortOrder.RJ_ASC); showSortMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("RJコード降順", color = Color.White) },
+                            onClick = { viewModel.changeSortOrder(FolderContentViewModel.SortOrder.RJ_DESC); showSortMenu = false }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = vaultSurface)
@@ -125,19 +165,33 @@ fun FolderContentScreen(
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
-                                    // フォルダ名のオーバーレイ（透明な黒背景）
+                                    // フォルダ名のオーバーレイ
                                     Surface(
-                                        color = Color.Black.copy(alpha = 0.5f),
+                                        color = Color.Black.copy(alpha = 0.6f),
                                         modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                                     ) {
-                                        Text(
-                                            item.name,
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            maxLines = 1,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                            textAlign = TextAlign.Center
-                                        )
+                                        Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                            val rjMatch = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
+                                            val rjCode = rjMatch?.value?.uppercase()
+                                            val circle = if (rjCode != null) metadataCache[rjCode] else null
+
+                                            if (circle != null) {
+                                                Text(
+                                                    circle,
+                                                    color = vaultPrimary,
+                                                    fontSize = 9.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Text(
+                                                item.name,
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
                                 }
                             } else {
@@ -187,14 +241,28 @@ fun FolderContentScreen(
                                         color = Color(0xFF1A2C1A).copy(alpha = 0.7f),
                                         modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                                     ) {
-                                        Text(
-                                            item.name.substringBeforeLast("."),
-                                            color = Color(0xFF88CC88),
-                                            fontSize = 10.sp,
-                                            maxLines = 1,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                            textAlign = TextAlign.Center
-                                        )
+                                        Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                            val rjMatch = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
+                                            val rjCode = rjMatch?.value?.uppercase()
+                                            val circle = if (rjCode != null) metadataCache[rjCode] else null
+
+                                            if (circle != null) {
+                                                Text(
+                                                    circle,
+                                                    color = Color(0xFF88CC88),
+                                                    fontSize = 9.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Text(
+                                                item.name.substringBeforeLast("."),
+                                                color = Color(0xFF88CC88),
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
                                     // ZIPバッジ
                                     Surface(

@@ -9,5 +9,6 @@ data class FolderEntity(
     val name: String,
     val parentId: String,
     val isPinned: Boolean = false,
-    val lastUpdated: Long = System.currentTimeMillis()
+    val lastUpdated: Long = System.currentTimeMillis(),
+    val category: String? = null // "マンガ", "ボイス", "画像", "ビデオ"
 )

@@ -8,6 +8,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import java.util.regex.Pattern
 
 /**
  * フォルダ画面と写真ビューアーで共有されるViewModel。
@@ -19,6 +23,10 @@ class FolderContentViewModel(
 
     companion object {
         private const val PAGE_SIZE = 200
+    }
+
+    enum class SortOrder {
+        DEFAULT, RJ_ASC, RJ_DESC
     }
 
     var folderPath: String = ""
@@ -35,6 +43,22 @@ class FolderContentViewModel(
 
     private val _hasReachedEnd = MutableStateFlow(false)
     val hasReachedEnd: StateFlow<Boolean> = _hasReachedEnd.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(SortOrder.DEFAULT)
+    val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
+
+    // メタデータ（サークル名など）のキャッシュ
+    private val _metadataCache = MutableStateFlow<Map<String, String>>(emptyMap())
+    val metadataCache = _metadataCache.asStateFlow()
+
+    // ソート済みのアイテムリスト
+    val sortedItems = combine(_items, _sortOrder) { items, order ->
+        when (order) {
+            SortOrder.DEFAULT -> items
+            SortOrder.RJ_ASC -> items.sortedWith(rjComparator(true))
+            SortOrder.RJ_DESC -> items.sortedWith(rjComparator(false))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private var currentOffset = 0
     private var totalItems = Int.MAX_VALUE
@@ -92,4 +116,44 @@ class FolderContentViewModel(
     fun getThumbnailUrl(path: String): String? = folderRepository.getThumbnailUrl(path)
     fun getOriginalImageUrl(path: String): String? = folderRepository.getOriginalImageUrl(path)
     fun getDlSiteThumbnailUrl(title: String): String? = folderRepository.getDlSiteThumbnailUrl(title)
+
+    fun changeSortOrder(order: SortOrder) {
+        _sortOrder.value = order
+    }
+
+    private fun rjComparator(ascending: Boolean) = Comparator<SynoFolder> { a, b ->
+        val numA = extractRjNumber(a.name)
+        val numB = extractRjNumber(b.name)
+        
+        if (numA == numB) {
+            a.name.compareTo(b.name)
+        } else {
+            if (ascending) numA.compareTo(numB) else numB.compareTo(numA)
+        }
+    }
+
+    private fun extractRjNumber(name: String): Long {
+        val match = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(name)
+        return match?.groupValues?.get(1)?.toLongOrNull() ?: Long.MAX_VALUE
+    }
+
+    /** RJコードからサークル名を非同期で取得してキャッシュを更新する */
+    fun fetchMetadataForRJItems() {
+        val rjItems = _items.value.mapNotNull { item ->
+            val match = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
+            match?.value?.uppercase()
+        }.distinct()
+
+        viewModelScope.launch {
+            rjItems.forEach { rj ->
+                if (!_metadataCache.value.containsKey(rj)) {
+                    val metadata = folderRepository.getDlSiteMetadata(rj)
+                    if (metadata != null) {
+                        val circle = metadata.maker_name ?: "Unknown"
+                        _metadataCache.value = _metadataCache.value + (rj to circle)
+                    }
+                }
+            }
+        }
+    }
 }

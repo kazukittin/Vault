@@ -30,4 +30,10 @@ class HomeViewModel(
             folderRepository.syncFolders()
         }
     }
+
+    fun setFolderCategory(folderId: String, category: String?) {
+        viewModelScope.launch {
+            folderRepository.updateFolderCategory(folderId, category)
+        }
+    }
 }

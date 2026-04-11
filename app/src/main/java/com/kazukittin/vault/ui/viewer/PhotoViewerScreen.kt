@@ -68,7 +68,8 @@ fun PhotoViewerScreen(
             state = pagerState,
             userScrollEnabled = isPagingEnabled,
             modifier = Modifier.fillMaxSize(),
-            key = { page -> imageItems[page].path }
+            key = { page -> imageItems[page].path },
+            beyondViewportPageCount = 0 // 見えているページ以外は描画しない（リソース節約）
         ) { page ->
             val item = imageItems[page]
             val imageUrl = viewModel.getOriginalImageUrl(item.path)
@@ -76,10 +77,12 @@ fun PhotoViewerScreen(
             val isVideo = item.name.lowercase().let { it.endsWith(".mp4") || it.endsWith(".mov") || it.endsWith(".avi") }
 
             if (isVideo && imageUrl != null) {
-                // 動画の場合はExoPlayerを表示（ズーム・パンは無効化）
+                // 動画の場合はExoPlayerを表示（現在のページのみアクティブにする）
+                val isActivePage = page == pagerState.currentPage
                 VideoPlayer(
                     videoUrl = imageUrl,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    isPlaying = isActivePage
                 )
             } else {
                 // 画像の場合はズーム・パン可能な表示
@@ -192,7 +195,7 @@ fun PhotoViewerScreen(
 }
 
 @Composable
-fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
+fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier, isPlaying: Boolean) {
     val context = LocalContext.current
     
     // ExoPlayerのインスタンス作成と設定
@@ -201,8 +204,12 @@ fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
             val mediaItem = MediaItem.fromUri(videoUrl)
             setMediaItem(mediaItem)
             prepare()
-            playWhenReady = true // 自動再生
         }
+    }
+
+    // 再生状態を管理
+    LaunchedEffect(isPlaying) {
+        exoPlayer.playWhenReady = isPlaying
     }
 
     // 画面から離れる時にリソースを解放

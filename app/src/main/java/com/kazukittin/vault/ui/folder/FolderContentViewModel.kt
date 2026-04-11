@@ -91,4 +91,5 @@ class FolderContentViewModel(
 
     fun getThumbnailUrl(path: String): String? = folderRepository.getThumbnailUrl(path)
     fun getOriginalImageUrl(path: String): String? = folderRepository.getOriginalImageUrl(path)
+    fun getDlSiteThumbnailUrl(title: String): String? = folderRepository.getDlSiteThumbnailUrl(title)
 }

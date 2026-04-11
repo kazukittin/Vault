@@ -24,7 +24,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +67,7 @@ fun FolderContentScreen(
         }
     }
 
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -95,8 +98,13 @@ fun FolderContentScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(items) { item ->
+                items(
+                    items = items,
+                    key = { it.path } // パスをキーにして再描画を最小限にする
+                ) { item ->
                     val isZip = item.name.lowercase().endsWith(".zip")
+                    val dlSiteUrl = viewModel.getDlSiteThumbnailUrl(item.name)
+
                     if (item.isDir) {
                         Card(
                             modifier = Modifier
@@ -105,28 +113,57 @@ fun FolderContentScreen(
                             colors = CardDefaults.cardColors(containerColor = vaultContainer),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Folder,
-                                    contentDescription = null,
-                                    tint = vaultPrimary,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    item.name,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1
-                                )
+                            if (dlSiteUrl != null) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(dlSiteUrl)
+                                            .crossfade(true)
+                                            .size(300)
+                                            .build(),
+                                        contentDescription = item.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    // フォルダ名のオーバーレイ（透明な黒背景）
+                                    Surface(
+                                        color = Color.Black.copy(alpha = 0.5f),
+                                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            item.name,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            } else {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = vaultPrimary,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        item.name,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     } else if (isZip) {
-                        // ZIP（マンガ）はアーカイブアイコンで表示
+                        // ZIP（マンガ）はアーカイブアイコンで表示。RJコードがあれば表紙を表示
                         Card(
                             modifier = Modifier
                                 .aspectRatio(1f)
@@ -134,21 +171,57 @@ fun FolderContentScreen(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2C1A)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text("📦", fontSize = 32.sp)
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    item.name.substringBeforeLast("."),
-                                    color = Color(0xFF88CC88),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 2,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                )
+                            if (dlSiteUrl != null) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(dlSiteUrl)
+                                            .crossfade(true)
+                                            .size(300)
+                                            .build(),
+                                        contentDescription = item.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Surface(
+                                        color = Color(0xFF1A2C1A).copy(alpha = 0.7f),
+                                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            item.name.substringBeforeLast("."),
+                                            color = Color(0xFF88CC88),
+                                            fontSize = 10.sp,
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    // ZIPバッジ
+                                    Surface(
+                                        color = Color(0xFF1A2C1A),
+                                        shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp),
+                                        modifier = Modifier.align(Alignment.TopEnd)
+                                    ) {
+                                        Text("ZIP", color = Color(0xFF88CC88), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                                    }
+                                }
+                            } else {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text("📦", fontSize = 32.sp)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        item.name.substringBeforeLast("."),
+                                        color = Color(0xFF88CC88),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -198,9 +271,12 @@ fun FolderContentScreen(
                                 }
                             }
                         } else {
-                            val url = viewModel.getThumbnailUrl(item.path)
                             AsyncImage(
-                                model = url,
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(viewModel.getThumbnailUrl(item.path))
+                                    .crossfade(true)
+                                    .size(300, 300) // グリッド用なので低解像度で十分
+                                    .build(),
                                 contentDescription = item.name,
                                 modifier = Modifier
                                     .aspectRatio(1f)

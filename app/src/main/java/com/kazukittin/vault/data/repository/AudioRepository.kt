@@ -76,13 +76,22 @@ class AudioRepository(
 
                 // 2. RJコードがあればDLsiteから取得
                 if (rjCode != null) {
+                    // まず、APIを使わずに直接画像URLを構成（確実なフォールバックとして）
+                    val rjNumber = rjCode.substring(2).toIntOrNull() ?: 0
+                    val rounded = ((rjNumber + 999) / 1000) * 1000
+                    val roundedStr = "RJ%06d".format(rounded)
+                    coverUrl = "https://img.dlsite.jp/modpub/images2/work/doujin/$roundedStr/${rjCode}_img_main.jpg"
+
                     try {
                         val infoMap = dlSiteApi.getProductInfo(rjCode)
                         val info = infoMap[rjCode]
                         if (info != null) {
                             title = info.work_name ?: title
                             circle = info.maker_name ?: circle
-                            coverUrl = info.image_main?.url
+                            // APIから画像が取れれば上書き（解像度が高い場合があるため）
+                            if (info.image_main?.url != null) {
+                                coverUrl = info.image_main.url
+                            }
                             cv = info.creaters?.voice_by?.joinToString(",") { it.name ?: "" } ?: ""
                             val dlsiteTags = info.genres?.mapNotNull { it.name } ?: emptyList()
                             tags = (tags.split(",") + dlsiteTags).filter { it.isNotBlank() }.distinct().joinToString(",")

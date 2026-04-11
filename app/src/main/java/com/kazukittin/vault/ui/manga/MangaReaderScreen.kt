@@ -104,7 +104,8 @@ fun MangaReaderScreen(
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    key = { pages[it].name }
+                    key = { pages[it].name },
+                    beyondViewportPageCount = 0 // 見えているページ以外は描画しない（リソース節約）
                 ) { pageIndex ->
                     AsyncImage(
                         model = ImageRequest.Builder(context)

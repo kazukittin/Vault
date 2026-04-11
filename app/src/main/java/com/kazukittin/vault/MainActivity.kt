@@ -62,6 +62,15 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val startDest = if (authManager.getSessionId() != null) "home" else "login"
 
+                    // フォルダ/写真ビューアーで共有するViewModel（同じインスタンスを使うことでインデックスを正しく共有）
+                    val folderViewModel: com.kazukittin.vault.ui.folder.FolderContentViewModel =
+                        viewModel(factory = object : ViewModelProvider.Factory {
+                            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                @Suppress("UNCHECKED_CAST")
+                                return com.kazukittin.vault.ui.folder.FolderContentViewModel(folderRepository) as T
+                            }
+                        })
+
                     // AudioPlayerViewModel is shared
                     val audioPlayerViewModel: com.kazukittin.vault.ui.audio.AudioPlayerViewModel = viewModel(factory = viewModelFactory)
                     audioPlayerViewModel.initController(applicationContext)
@@ -114,15 +123,10 @@ class MainActivity : ComponentActivity() {
                             val decodedPath = java.net.URLDecoder.decode(folderPath, "UTF-8")
                             val decodedName = java.net.URLDecoder.decode(folderName, "UTF-8")
 
-                            val folderViewModel: com.kazukittin.vault.ui.folder.FolderContentViewModel = viewModel(
-                                key = decodedPath,
-                                factory = object : ViewModelProvider.Factory {
-                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                                        @Suppress("UNCHECKED_CAST")
-                                        return com.kazukittin.vault.ui.folder.FolderContentViewModel(folderRepository, decodedPath) as T
-                                    }
-                                }
-                            )
+                            // 共有VMに新しいフォルダパスを伝える
+                            androidx.compose.runtime.LaunchedEffect(decodedPath) {
+                                folderViewModel.navigateTo(decodedPath)
+                            }
 
                             com.kazukittin.vault.ui.folder.FolderContentScreen(
                                 folderName = decodedName,
@@ -136,6 +140,11 @@ class MainActivity : ComponentActivity() {
                                 onPhotoClick = { index ->
                                     val encodedPath = java.net.URLEncoder.encode(decodedPath, "UTF-8")
                                     navController.navigate("photo?folderPath=$encodedPath&startIndex=$index")
+                                },
+                                onZipClick = { path, name ->
+                                    val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+                                    val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
+                                    navController.navigate("manga_reader?path=$encodedPath&name=$encodedName")
                                 }
                             )
                         }
@@ -147,23 +156,42 @@ class MainActivity : ComponentActivity() {
                                 androidx.navigation.navArgument("startIndex") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
                             )
                         ) { backStackEntry ->
-                            val folderPath = backStackEntry.arguments?.getString("folderPath") ?: ""
                             val startIndex = backStackEntry.arguments?.getInt("startIndex") ?: 0
-                            val decodedPath = java.net.URLDecoder.decode(folderPath, "UTF-8")
 
-                            val folderViewModel: com.kazukittin.vault.ui.folder.FolderContentViewModel = viewModel(
-                                key = decodedPath,
-                                factory = object : ViewModelProvider.Factory {
-                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                                        @Suppress("UNCHECKED_CAST")
-                                        return com.kazukittin.vault.ui.folder.FolderContentViewModel(folderRepository, decodedPath) as T
-                                    }
-                                }
-                            )
-
+                            // フォルダ画面と同じVMを使うことで、同じitemsリストを参照しインデックスが正確に一致する
                             com.kazukittin.vault.ui.viewer.PhotoViewerScreen(
                                 viewModel = folderViewModel,
                                 initialIndex = startIndex,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable(
+                            route = "manga_reader?path={path}&name={name}",
+                            arguments = listOf(
+                                androidx.navigation.navArgument("path") { type = androidx.navigation.NavType.StringType },
+                                androidx.navigation.navArgument("name") { type = androidx.navigation.NavType.StringType }
+                            )
+                        ) { backStackEntry ->
+                            val encodedPath = backStackEntry.arguments?.getString("path") ?: ""
+                            val name = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("name") ?: "", "UTF-8")
+                            val decodedPath = java.net.URLDecoder.decode(encodedPath, "UTF-8")
+
+                            // ZIPのダウンロードURLを構築
+                            val ip = authManager.getNasIp() ?: "192.168.10.115"
+                            val sid = authManager.getSessionId() ?: ""
+                            val pathParam = decodedPath.split("/").joinToString("/") {
+                                java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20")
+                            }
+                            val downloadUrl = "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=$pathParam&mode=download&_sid=$sid"
+
+                            val mangaViewModel: com.kazukittin.vault.ui.manga.MangaReaderViewModel =
+                                androidx.lifecycle.viewmodel.compose.viewModel(key = decodedPath)
+
+                            com.kazukittin.vault.ui.manga.MangaReaderScreen(
+                                viewModel = mangaViewModel,
+                                downloadUrl = downloadUrl,
+                                zipName = name,
                                 onBack = { navController.popBackStack() }
                             )
                         }

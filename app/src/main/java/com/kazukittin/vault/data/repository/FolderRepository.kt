@@ -116,7 +116,10 @@ class FolderRepository(
     fun getThumbnailUrl(path: String): String? {
         val ip = authManager.getNasIp() ?: return null
         val sid = authManager.getSessionId() ?: return null
-        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
+        // パスを正しくエンコード（スラッシュはそのまま、スペースは%20）
+        val encodedPath = path.split("/").joinToString("/") { 
+            java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") 
+        }
         return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Thumb&version=2&method=get&path=$encodedPath&size=small&_sid=$sid"
     }
 
@@ -124,8 +127,10 @@ class FolderRepository(
     fun getOriginalImageUrl(path: String): String? {
         val ip = authManager.getNasIp() ?: return null
         val sid = authManager.getSessionId() ?: return null
-        val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
-        // FileStation.Download を使用してオリジナルファイルを取得する
+        // パスを正しくエンコード（スラッシュはそのまま）
+        val encodedPath = path.split("/").joinToString("/") { 
+            java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") 
+        }
         return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=$encodedPath&mode=download&_sid=$sid"
     }
 }

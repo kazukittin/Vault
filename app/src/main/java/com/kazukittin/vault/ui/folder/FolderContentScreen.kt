@@ -33,7 +33,8 @@ fun FolderContentScreen(
     viewModel: FolderContentViewModel,
     onBack: () -> Unit,
     onFolderClick: (String, String) -> Unit,
-    onPhotoClick: (Int) -> Unit
+    onPhotoClick: (Int) -> Unit,
+    onZipClick: (path: String, name: String) -> Unit = { _, _ -> }
 ) {
     val items by viewModel.items.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -95,6 +96,7 @@ fun FolderContentScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(items) { item ->
+                    val isZip = item.name.lowercase().endsWith(".zip")
                     if (item.isDir) {
                         Card(
                             modifier = Modifier
@@ -120,6 +122,32 @@ fun FolderContentScreen(
                                     color = Color.White,
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1
+                                )
+                            }
+                        }
+                    } else if (isZip) {
+                        // ZIP（マンガ）はアーカイブアイコンで表示
+                        Card(
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .clickable { onZipClick(item.path, item.name) },
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2C1A)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("📦", fontSize = 32.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    item.name.substringBeforeLast("."),
+                                    color = Color(0xFF88CC88),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
                                 )
                             }
                         }

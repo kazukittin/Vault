@@ -399,10 +399,10 @@ fun FolderContentScreen(
                                         if (mediaIndex >= 0) onPhotoClick(mediaIndex)
                                     }
                             ) {
-                                // 動画サムネイル
+                                // 動画サムネイル（DLSite優先、なければNAS）
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
-                                        .data(viewModel.getThumbnailUrl(item.path))
+                                        .data(dlSiteUrl ?: viewModel.getThumbnailUrl(item.path))
                                         .crossfade(true)
                                         .size(300, 300)
                                         .build(),

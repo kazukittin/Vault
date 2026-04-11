@@ -145,7 +145,7 @@ class FolderRepository(
         val encodedPath = path.split("/").joinToString("/") { 
             java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") 
         }
-        return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Thumb&version=2&method=get&path=$encodedPath&size=small&_sid=$sid"
+        return "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Thumb&version=3&method=get&path=$encodedPath&size=medium&_sid=$sid"
     }
 
     // フルスクリーン用の高画質画像のURLを構築する

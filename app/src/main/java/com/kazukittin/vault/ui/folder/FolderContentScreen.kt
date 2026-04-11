@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -39,12 +43,19 @@ fun FolderContentScreen(
     onPhotoClick: (Int) -> Unit,
     onZipClick: (path: String, name: String) -> Unit = { _, _ -> }
 ) {
-    val items by viewModel.sortedItems.collectAsState() // ソート済みのアイテムを使用
+    val items by viewModel.displayItems.collectAsState() // 検索・ソート済みのアイテムを使用
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasReachedEnd by viewModel.hasReachedEnd.collectAsState()
     val currentSortOrder by viewModel.sortOrder.collectAsState()
     val metadataCache by viewModel.metadataCache.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val folderCategory = viewModel.folderCategory
+    
+    val selectedCircle by viewModel.selectedCircle.collectAsState()
+    val selectedAuthor by viewModel.selectedAuthor.collectAsState()
+    val selectedTag by viewModel.selectedTag.collectAsState()
+    val availableFilters by viewModel.availableFilters.collectAsState()
 
     val imageItems = remember(items) { items.filter { !it.isDir } }
 
@@ -78,14 +89,53 @@ fun FolderContentScreen(
 
     Scaffold(
         topBar = {
+            var isSearchActive by remember { mutableStateOf(false) }
             TopAppBar(
-                title = { Text(folderName, color = Color.White, fontSize = 18.sp) },
+                title = {
+                    if (isSearchActive) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.updateSearchQuery(it) },
+                            placeholder = { Text("サークル名、声優名などで検索", color = Color.White.copy(alpha = 0.5f)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = vaultContainer,
+                                unfocusedContainerColor = vaultContainer,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            singleLine = true
+                        )
+                    } else {
+                        Text(folderName, color = Color.White, fontSize = 18.sp)
+                    }
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    IconButton(
+                        onClick = {
+                            if (isSearchActive) {
+                                isSearchActive = false
+                                viewModel.updateSearchQuery("")
+                            } else {
+                                onBack()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            if (isSearchActive) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
                     }
                 },
                 actions = {
+                    if (!isSearchActive) {
+                        IconButton(onClick = { isSearchActive = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = vaultPrimary)
+                        }
+                    }
                     var showSortMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showSortMenu = true }) {
                         Text(
@@ -122,22 +172,34 @@ fun FolderContentScreen(
         },
         containerColor = vaultSurface
     ) { padding ->
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = vaultPrimary)
+        Column(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+            // フィルタバー（マンガ・ボイスのみ表示）
+            if (folderCategory == "マンガ" || folderCategory == "ボイス") {
+                FilterBar(
+                    availableFilters = availableFilters,
+                    selectedCircle = selectedCircle,
+                    selectedAuthor = selectedAuthor,
+                    selectedTag = selectedTag,
+                    onCircleSelect = { viewModel.selectCircle(it) },
+                    onAuthorSelect = { viewModel.selectAuthor(it) },
+                    onTagSelect = { viewModel.selectTag(it) },
+                    vaultPrimary = vaultPrimary
+                )
             }
-        } else {
-            LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(
-                    top = padding.calculateTopPadding() + 4.dp,
-                    start = 4.dp, end = 4.dp, bottom = 4.dp
-                ),
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = vaultPrimary)
+                }
+            } else {
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(4.dp),
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                 items(
                     items = items,
                     key = { it.path } // パスをキーにして再描画を最小限にする
@@ -173,16 +235,30 @@ fun FolderContentScreen(
                                         Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                                             val rjMatch = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
                                             val rjCode = rjMatch?.value?.uppercase()
-                                            val circle = if (rjCode != null) metadataCache[rjCode] else null
+                                            val info = if (rjCode != null) metadataCache[rjCode] else null
 
-                                            if (circle != null) {
+                                            if (info != null) {
+                                                // サークル名
                                                 Text(
-                                                    circle,
+                                                    info.maker_name ?: "Unknown",
                                                     color = vaultPrimary,
                                                     fontSize = 9.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
+                                                // ボイスフォルダなら声優名を表示
+                                                if (folderCategory == "ボイス") {
+                                                    val voices = info.creaters?.voice_by?.joinToString(", ") { v -> v.name ?: "" }
+                                                    if (!voices.isNullOrEmpty()) {
+                                                        Text(
+                                                            "CV: $voices",
+                                                            color = Color.White.copy(alpha = 0.7f),
+                                                            fontSize = 8.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
                                             }
                                             Text(
                                                 item.name,
@@ -244,16 +320,30 @@ fun FolderContentScreen(
                                         Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                                             val rjMatch = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
                                             val rjCode = rjMatch?.value?.uppercase()
-                                            val circle = if (rjCode != null) metadataCache[rjCode] else null
+                                            val info = if (rjCode != null) metadataCache[rjCode] else null
 
-                                            if (circle != null) {
+                                            if (info != null) {
+                                                // サークル名
                                                 Text(
-                                                    circle,
+                                                    info.maker_name ?: "Unknown",
                                                     color = Color(0xFF88CC88),
                                                     fontSize = 9.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
+                                                // ボイスフォルダなら声優名を表示
+                                                if (folderCategory == "ボイス") {
+                                                    val voices = info.creaters?.voice_by?.joinToString(", ") { v -> v.name ?: "" }
+                                                    if (!voices.isNullOrEmpty()) {
+                                                        Text(
+                                                            "CV: $voices",
+                                                            color = Color(0xFF88CC88).copy(alpha = 0.7f),
+                                                            fontSize = 8.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
                                             }
                                             Text(
                                                 item.name.substringBeforeLast("."),
@@ -392,6 +482,84 @@ fun FolderContentScreen(
                     }
                 }
             }
+        }
+    }
+    }
+}
+
+@Composable
+fun FilterBar(
+    availableFilters: Triple<List<String>, List<String>, List<String>>,
+    selectedCircle: String?,
+    selectedAuthor: String?,
+    selectedTag: String?,
+    onCircleSelect: (String?) -> Unit,
+    onAuthorSelect: (String?) -> Unit,
+    onTagSelect: (String?) -> Unit,
+    vaultPrimary: Color
+) {
+    val (circles, authors, tags) = availableFilters
+    
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        // サークル
+        if (circles.isNotEmpty()) {
+            FilterRow("サークル", circles, selectedCircle, onCircleSelect, vaultPrimary)
+        }
+        // 作者
+        if (authors.isNotEmpty()) {
+            FilterRow("作者", authors, selectedAuthor, onAuthorSelect, vaultPrimary)
+        }
+        // タグ
+        if (tags.isNotEmpty()) {
+            FilterRow("タグ", tags, selectedTag, onTagSelect, vaultPrimary)
+        }
+    }
+}
+
+@Composable
+fun FilterRow(
+    label: String,
+    options: List<String>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+    vaultPrimary: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label, 
+            color = Color.White.copy(alpha = 0.5f), 
+            fontSize = 10.sp, 
+            modifier = Modifier.padding(horizontal = 12.dp).width(50.dp)
+        )
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            options.forEach { option ->
+                val isSelected = option == selected
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelect(if (isSelected) null else option) },
+                    label = { Text(option, fontSize = 10.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = vaultPrimary.copy(alpha = 0.2f),
+                        selectedLabelColor = vaultPrimary,
+                        labelColor = Color.White.copy(alpha = 0.7f),
+                        containerColor = Color.Transparent
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = Color.White.copy(alpha = 0.1f),
+                        selectedBorderColor = vaultPrimary.copy(alpha = 0.5f),
+                        borderWidth = 0.5.dp
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
         }
     }
 }

@@ -28,7 +28,10 @@ data class DlSiteGenre(
 )
 
 data class DlSiteCreaters(
-    val voice_by: List<DlSiteVoice>?
+    val voice_by: List<DlSiteVoice>?,
+    val author: List<DlSiteVoice>?, // 著者
+    val illustration: List<DlSiteVoice>?, // イラスト
+    val scenario: List<DlSiteVoice>? // シナリオ
 )
 
 data class DlSiteVoice(

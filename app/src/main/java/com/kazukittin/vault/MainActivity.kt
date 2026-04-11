@@ -103,9 +103,12 @@ class MainActivity : ComponentActivity() {
                                 pinnedCollections = pinnedFolders,
                                 allCollections = allFolders,
                                 onFolderClick = { path, name ->
+                                    val folder = (pinnedFolders + allFolders).find { it.id == path }
+                                    val cat = folder?.category ?: ""
                                     val encodedPath = java.net.URLEncoder.encode(path, "UTF-8")
                                     val encodedName = java.net.URLEncoder.encode(name, "UTF-8")
-                                    navController.navigate("folder/$encodedPath?name=$encodedName")
+                                    val encodedCat = java.net.URLEncoder.encode(cat, "UTF-8")
+                                    navController.navigate("folder/$encodedPath?name=$encodedName&cat=$encodedCat")
                                 },
                                 onAudioClick = { navController.navigate("audio_library") },
                                 onSetCategory = { id, cat -> homeViewModel.setFolderCategory(id, cat) }
@@ -113,20 +116,23 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable(
-                            route = "folder/{folderPath}?name={folderName}",
+                            route = "folder/{folderPath}?name={folderName}&cat={category}",
                             arguments = listOf(
                                 androidx.navigation.navArgument("folderPath") { type = androidx.navigation.NavType.StringType },
-                                androidx.navigation.navArgument("folderName") { type = androidx.navigation.NavType.StringType; defaultValue = "Folder" }
+                                androidx.navigation.navArgument("folderName") { type = androidx.navigation.NavType.StringType; defaultValue = "Folder" },
+                                androidx.navigation.navArgument("category") { type = androidx.navigation.NavType.StringType; defaultValue = "" }
                             )
                         ) { backStackEntry ->
                             val folderPath = backStackEntry.arguments?.getString("folderPath") ?: ""
                             val folderName = backStackEntry.arguments?.getString("folderName") ?: ""
+                            val category = backStackEntry.arguments?.getString("category") ?: ""
                             val decodedPath = java.net.URLDecoder.decode(folderPath, "UTF-8")
                             val decodedName = java.net.URLDecoder.decode(folderName, "UTF-8")
+                            val decodedCat = java.net.URLDecoder.decode(category, "UTF-8").ifEmpty { null }
 
                             // 共有VMに新しいフォルダパスを伝える
                             androidx.compose.runtime.LaunchedEffect(decodedPath) {
-                                folderViewModel.navigateTo(decodedPath)
+                                folderViewModel.navigateTo(decodedPath, decodedCat)
                             }
 
                             com.kazukittin.vault.ui.folder.FolderContentScreen(

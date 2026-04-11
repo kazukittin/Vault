@@ -36,7 +36,6 @@ fun MangaReaderScreen(
     val vaultSurface = Color(0xFF000000)
     val vaultPrimary = Color(0xFFA1CCED)
 
-    // 画面が開いたらZIPの読み込みを開始
     LaunchedEffect(downloadUrl) {
         viewModel.loadZip(context, downloadUrl, zipName)
     }
@@ -58,11 +57,7 @@ fun MangaReaderScreen(
                         color = vaultPrimary,
                         trackColor = Color.White.copy(alpha = 0.1f)
                     )
-                    Text(
-                        "${(s.progress * 100).toInt()}%",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 14.sp
-                    )
+                    Text("${(s.progress * 100).toInt()}%", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
                 }
             }
 
@@ -96,7 +91,6 @@ fun MangaReaderScreen(
                     pageCount = { pages.size }
                 )
 
-                // ページ変更を追跡
                 LaunchedEffect(pagerState.currentPage) {
                     viewModel.goToPage(pagerState.currentPage)
                 }
@@ -104,8 +98,7 @@ fun MangaReaderScreen(
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
-                    key = { pages[it].name },
-                    beyondViewportPageCount = 0 // 見えているページ以外は描画しない（リソース節約）
+                    key = { pages[it].name }
                 ) { pageIndex ->
                     AsyncImage(
                         model = ImageRequest.Builder(context)
@@ -118,7 +111,7 @@ fun MangaReaderScreen(
                     )
                 }
 
-                // 上部: 戻るボタン + タイトル
+                // 上部バー
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -128,23 +121,13 @@ fun MangaReaderScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "戻る",
-                                tint = Color.White
-                            )
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る", tint = Color.White)
                         }
-                        Text(
-                            zipName.substringBeforeLast("."),
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Text(zipName.substringBeforeLast("."), color = Color.White, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
                     }
                 }
 
-                // 下部: ページ番号
+                // 下部バー
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -153,11 +136,7 @@ fun MangaReaderScreen(
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "${pagerState.currentPage + 1} / ${pages.size}",
-                        color = Color.White,
-                        fontSize = 13.sp
-                    )
+                    Text("${pagerState.currentPage + 1} / ${pages.size}", color = Color.White, fontSize = 13.sp)
                 }
             }
         }

@@ -43,7 +43,7 @@ fun FolderContentScreen(
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasReachedEnd by viewModel.hasReachedEnd.collectAsState()
 
-    val imageItems = items.filter { !it.isDir }
+    val imageItems = remember(items) { items.filter { !it.isDir } }
 
     val vaultSurface   = Color(0xFF071327)
     val vaultContainer = Color(0xFF142034)

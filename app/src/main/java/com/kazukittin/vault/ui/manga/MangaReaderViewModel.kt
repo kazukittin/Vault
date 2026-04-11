@@ -19,8 +19,8 @@ import java.util.zip.ZipInputStream
 
 sealed class MangaLoadState {
     object Idle : MangaLoadState()
-    data class Downloading(val progress: Float) : MangaLoadState()  // 0.0〜1.0
-    object Extracting : MangaLoadState()
+    data class Downloading(val progress: Float) : MangaLoadState()
+    object Extracting : MangaLoadState() // 全展開中
     data class Ready(val pages: List<File>) : MangaLoadState()
     data class Error(val message: String) : MangaLoadState()
 }
@@ -36,7 +36,6 @@ class MangaReaderViewModel : ViewModel() {
     private var cachedZipFile: File? = null
 
     fun loadZip(context: Context, downloadUrl: String, zipName: String) {
-        // すでに読み込み済みなら何もしない
         if (_state.value is MangaLoadState.Ready) return
 
         viewModelScope.launch {
@@ -45,7 +44,7 @@ class MangaReaderViewModel : ViewModel() {
                 val zipFile = downloadZip(context, downloadUrl, zipName)
                 cachedZipFile = zipFile
 
-                // 2. ZIPを展開して画像ファイルを取り出す
+                // 2. ZIPの中身を全て展開（一括展開に戻す）
                 _state.value = MangaLoadState.Extracting
                 val pages = extractImages(context, zipFile, zipName)
 
@@ -68,17 +67,10 @@ class MangaReaderViewModel : ViewModel() {
     private suspend fun downloadZip(context: Context, downloadUrl: String, zipName: String): File =
         withContext(Dispatchers.IO) {
             val cacheFile = File(context.cacheDir, "manga_${zipName.hashCode()}.zip")
+            if (cacheFile.exists() && cacheFile.length() > 0) return@withContext cacheFile
 
-            // すでにキャッシュにあれば再ダウンロードしない
-            if (cacheFile.exists() && cacheFile.length() > 0) {
-                Log.d("MangaReader", "キャッシュから読み込み: ${cacheFile.name}")
-                return@withContext cacheFile
-            }
-
-            Log.d("MangaReader", "ダウンロード開始: $downloadUrl")
             val connection = URL(downloadUrl).openConnection() as HttpURLConnection
             connection.connect()
-
             val fileSize = connection.contentLengthLong
             var downloaded = 0L
 
@@ -95,21 +87,16 @@ class MangaReaderViewModel : ViewModel() {
                     }
                 }
             }
-            Log.d("MangaReader", "ダウンロード完了: ${cacheFile.length()} bytes")
             cacheFile
         }
 
     private suspend fun extractImages(context: Context, zipFile: File, zipName: String): List<File> =
         withContext(Dispatchers.IO) {
             val outputDir = File(context.cacheDir, "manga_pages_${zipName.hashCode()}")
-            
-            // すでに展開済みなら再展開しない
             if (outputDir.exists() && (outputDir.listFiles()?.isNotEmpty() == true)) {
-                val existing = outputDir.listFiles()!!
-                    .filter { it.name.lowercase().matches(Regex(".*\\.(jpg|jpeg|png|webp|gif)")) }
-                    .sortedBy { it.name }
-                Log.d("MangaReader", "展開済みキャッシュから ${existing.size} ページ読み込み")
-                return@withContext existing
+                return@withContext outputDir.listFiles()!!
+                    .filter { it.name.lowercase().let { n -> n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp") || n.endsWith(".gif") } }
+                    .sortedWith(naturalOrder())
             }
             
             outputDir.mkdirs()
@@ -121,43 +108,27 @@ class MangaReaderViewModel : ViewModel() {
                 while (entry != null) {
                     val entryName = entry.name
                     val extension = entryName.substringAfterLast('.', "").lowercase()
-                    
-                    // 隠しファイルや __MACOSX などのメタデータをスキップ
                     if (!entry.isDirectory && extension in imageExtensions && !entryName.startsWith("__")) {
-                        // ファイル名のみを取り出す（パスの / を _ に置換）
                         val safeFileName = entryName.replace('/', '_').replace('\\', '_')
                         val outFile = File(outputDir, safeFileName)
-                        
-                        FileOutputStream(outFile).use { out ->
-                            zip.copyTo(out)
-                        }
+                        FileOutputStream(outFile).use { out -> zip.copyTo(out) }
                         imageFiles.add(outFile)
-                        Log.d("MangaReader", "展開: $safeFileName")
                     }
                     zip.closeEntry()
                     entry = zip.nextEntry
                 }
             }
-
-            // ファイル名でソート（自然順）
             imageFiles.sortWith(naturalOrder())
-            Log.d("MangaReader", "合計 ${imageFiles.size} ページ展開完了")
             imageFiles
         }
-
-    override fun onCleared() {
-        // ViewModelが破棄されてもキャッシュは残す（再訪問時の高速化のため）
-        super.onCleared()
-    }
 }
 
-/** 自然順ソート比較器（1.jpg, 2.jpg, 10.jpg を正しく並べる） */
 private fun naturalOrder(): Comparator<File> = Comparator { a, b ->
     val partsA = a.name.split(Regex("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)"))
     val partsB = b.name.split(Regex("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)"))
     for (i in 0 until minOf(partsA.size, partsB.size)) {
         val pa = partsA[i]; val pb = partsB[i]
-        val cmp = if (pa.first().isDigit() && pb.first().isDigit()) {
+        val cmp = if (pa.firstOrNull()?.isDigit() == true && pb.firstOrNull()?.isDigit() == true) {
             pa.toLong().compareTo(pb.toLong())
         } else {
             pa.compareTo(pb)

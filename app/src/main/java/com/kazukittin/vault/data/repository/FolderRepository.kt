@@ -114,15 +114,15 @@ class FolderRepository(
     /**
      * タイトルからRJコード（RJ123456など）を探し、DLsiteの公式サムネイルURLを返す
      */
-    fun getDlSiteThumbnailUrl(title: String): String? {
-        val rjMatch = Regex("RJ(\\d{6,})", RegexOption.IGNORE_CASE).find(title) ?: return null
-        val rjCode = rjMatch.value.uppercase() // "RJ123456"
-        val rjNumber = rjMatch.groupValues[1].toInt()
-        
-        // DLsiteの画像サーバーの規則: 1000単位で切り上げられたフォルダに格納されている
-        // 例: RJ307521 -> RJ308000
+    fun getDlSiteThumbnailUrl(name: String): String? {
+        val rjMatch = Regex("RJ(\\d+)").find(name) ?: return null
+        val rjCode = rjMatch.value
+        val digits = rjMatch.groupValues[1]
+        val rjNumber = digits.toLongOrNull() ?: 0L 
+
         val rounded = ((rjNumber + 999) / 1000) * 1000
-        val roundedStr = "RJ%06d".format(rounded)
+        // 元の桁数（RJ01123456なら8桁）に合わせて0埋めする
+        val roundedStr = "RJ" + "%0${digits.length}d".format(rounded)
         
         return "https://img.dlsite.jp/modpub/images2/work/doujin/$roundedStr/${rjCode}_img_main.jpg"
     }

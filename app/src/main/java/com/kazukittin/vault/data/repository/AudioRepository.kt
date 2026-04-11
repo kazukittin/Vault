@@ -77,9 +77,10 @@ class AudioRepository(
                 // 2. RJコードがあればDLsiteから取得
                 if (rjCode != null) {
                     // まず、APIを使わずに直接画像URLを構成（確実なフォールバックとして）
-                    val rjNumber = rjCode.substring(2).toIntOrNull() ?: 0
+                    val digits = rjCode.substring(2)
+                    val rjNumber = digits.toLongOrNull() ?: 0L
                     val rounded = ((rjNumber + 999) / 1000) * 1000
-                    val roundedStr = "RJ%06d".format(rounded)
+                    val roundedStr = "RJ" + "%0${digits.length}d".format(rounded)
                     coverUrl = "https://img.dlsite.jp/modpub/images2/work/doujin/$roundedStr/${rjCode}_img_main.jpg"
 
                     try {

@@ -394,36 +394,50 @@ fun FolderContentScreen(
                                 modifier = Modifier
                                     .aspectRatio(1f)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF0D1E35))
+                                    .background(vaultContainer)
                                     .clickable {
                                         if (mediaIndex >= 0) onPhotoClick(mediaIndex)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(8.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .background(Color(0xFFA1CCED).copy(alpha = 0.15f), RoundedCornerShape(32.dp))
-                                            .padding(12.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.PlayArrow,
-                                            contentDescription = "Video",
-                                            tint = Color(0xFFA1CCED),
-                                            modifier = Modifier.size(36.dp)
-                                        )
                                     }
-                                    Spacer(modifier = Modifier.height(6.dp))
+                            ) {
+                                // 動画サムネイル
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(viewModel.getThumbnailUrl(item.path))
+                                        .crossfade(true)
+                                        .size(300, 300)
+                                        .build(),
+                                    contentDescription = item.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                
+                                // 再生アイコンオーバーレイ
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        contentDescription = "Video",
+                                        tint = Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+
+                                // ファイル名オーバーレイ
+                                Surface(
+                                    color = Color.Black.copy(alpha = 0.5f),
+                                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                ) {
                                     Text(
                                         text = item.name,
-                                        color = Color.White.copy(alpha = 0.7f),
+                                        color = Color.White,
                                         fontSize = 10.sp,
-                                        maxLines = 2,
+                                        maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                         textAlign = TextAlign.Center
                                     )
                                 }

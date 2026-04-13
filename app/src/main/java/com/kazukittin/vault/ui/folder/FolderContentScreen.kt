@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
@@ -383,13 +384,51 @@ fun FolderContentScreen(
                             }
                         }
                     } else {
-                        val isVideo = item.name.lowercase().let {
+                        val itemName = item.name.lowercase()
+                        val isVideo = itemName.let {
                             it.endsWith(".mp4") || it.endsWith(".mov") ||
                             it.endsWith(".avi") || it.endsWith(".mkv") || it.endsWith(".webm")
                         }
+                        val isAudio = itemName.let {
+                            it.endsWith(".mp3") || it.endsWith(".flac") ||
+                            it.endsWith(".wav") || it.endsWith(".m4a")
+                        }
                         val mediaIndex = imageItems.indexOf(item)
 
-                        if (isVideo) {
+                        if (isAudio) {
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF1A1A2E))
+                                    .clickable {
+                                        if (mediaIndex >= 0) onPhotoClick(mediaIndex)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.MusicNote,
+                                        contentDescription = "Audio",
+                                        tint = Color(0xFFA1CCED),
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = item.name,
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
+                            }
+                        } else if (isVideo) {
                             Box(
                                 modifier = Modifier
                                     .aspectRatio(1f)

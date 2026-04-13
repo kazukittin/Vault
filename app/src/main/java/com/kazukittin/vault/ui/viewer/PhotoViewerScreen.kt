@@ -74,9 +74,11 @@ fun PhotoViewerScreen(
             val item = imageItems[page]
             val imageUrl = viewModel.getOriginalImageUrl(item.path)
 
-            val isVideo = item.name.lowercase().let { it.endsWith(".mp4") || it.endsWith(".mov") || it.endsWith(".avi") }
+            val name = item.name.lowercase()
+            val isVideo = name.let { it.endsWith(".mp4") || it.endsWith(".mov") || it.endsWith(".avi") || it.endsWith(".mkv") || it.endsWith(".webm") }
+            val isAudio = name.let { it.endsWith(".mp3") || it.endsWith(".flac") || it.endsWith(".wav") || it.endsWith(".m4a") }
 
-            if (isVideo && imageUrl != null) {
+            if ((isVideo || isAudio) && imageUrl != null) {
                 // 動画の場合はExoPlayerを表示（現在のページのみアクティブにする）
                 val isActivePage = page == pagerState.currentPage
                 VideoPlayer(

@@ -165,7 +165,7 @@ class FolderContentViewModel(
 
             totalItems = total
             currentOffset += newItems.size
-            _items.value = _items.value + newItems
+            _items.value = (_items.value + newItems).distinctBy { it.path }
 
             if (newItems.isEmpty() || currentOffset >= totalItems) {
                 _hasReachedEnd.value = true

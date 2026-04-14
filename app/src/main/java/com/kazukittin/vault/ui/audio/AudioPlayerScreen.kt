@@ -5,18 +5,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,29 +69,29 @@ fun AudioPlayerScreen(
         }
     }
 
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(listOf(bgMid, bgDark))
             )
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { dragOffset = 0f },
+                    onDragEnd   = { dragOffset = 0f },
+                    onDragCancel = { dragOffset = 0f },
+                    onVerticalDrag = { _, delta ->
+                        dragOffset += delta
+                        if (dragOffset > 150f) {
+                            dragOffset = 0f
+                            onMinimize()
+                        }
+                    }
+                )
+            }
     ) {
-        // ── 左上: 最小化ボタン ──
-        IconButton(
-            onClick = onMinimize,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(top = 48.dp, start = 8.dp)
-                .size(48.dp)
-        ) {
-            Icon(
-                Icons.Default.KeyboardArrowDown,
-                contentDescription = "最小化",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
         if (work == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = primary)
@@ -101,8 +105,6 @@ fun AudioPlayerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                Spacer(modifier = Modifier.height(56.dp)) // 最小化ボタン分のスペース
-
                 Spacer(modifier = Modifier.weight(0.06f))
 
                 // ── カバーアート ──

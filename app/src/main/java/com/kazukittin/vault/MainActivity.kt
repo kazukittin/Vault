@@ -271,7 +271,10 @@ class MainActivity : ComponentActivity() {
                         composable("audio_player") {
                             com.kazukittin.vault.ui.audio.AudioPlayerScreen(
                                 viewModel = audioPlayerViewModel,
-                                onBack = { navController.popBackStack() },
+                                onBack = {
+                                    isPlayerMinimized = true
+                                    navController.popBackStack()
+                                },
                                 onMinimize = {
                                     isPlayerMinimized = true
                                     navController.popBackStack()

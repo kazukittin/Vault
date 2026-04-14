@@ -1,13 +1,11 @@
 package com.kazukittin.vault.ui.audio
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -219,105 +217,6 @@ fun AudioPlayerScreen(
                 }
 
                 Spacer(modifier = Modifier.weight(0.08f))
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// ミニプレイヤー（画面下部に常時表示）
-// ─────────────────────────────────────────────────────────────
-
-@Composable
-fun MiniPlayer(
-    viewModel: AudioPlayerViewModel,
-    onExpand: () -> Unit,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val work by viewModel.currentWork.collectAsState()
-    val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
-
-    val bgColor = Color(0xFF0D2040)
-    val primary  = Color(0xFFA1CCED)
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onExpand() },
-        color = bgColor,
-        shadowElevation = 12.dp,
-        shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // カバーアート
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF142034))
-            ) {
-                AsyncImage(
-                    model = work?.coverUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // タイトル / アーティスト
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = currentTrackTitle.ifEmpty { work?.title ?: "" },
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (!work?.circle.isNullOrEmpty()) {
-                    Text(
-                        text = work?.circle ?: "",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            // 再生 / 一時停止
-            IconButton(
-                onClick = { viewModel.togglePlay() },
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "再生/一時停止",
-                    tint = primary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-
-            // 閉じるボタン
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "閉じる",
-                    tint = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
     }

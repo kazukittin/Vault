@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -36,97 +35,95 @@ fun MiniPlayer(
     val position by viewModel.position.collectAsState()
     val duration by viewModel.duration.collectAsState()
 
-    val vaultSurface = Color(0xFF0D1B2A)
-    val vaultPrimary = Color(0xFFA1CCED)
+    val surface = Color(0xFF0D2040)
+    val accent = Color(0xFFA1CCED)
+    val progress = if (duration > 0) position.toFloat() / duration.toFloat() else 0f
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .background(vaultSurface)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = surface,
+        shadowElevation = 12.dp
     ) {
-        // プログレスバー（上端）
-        val progress = if (duration > 0) position.toFloat() / duration.toFloat() else 0f
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp),
-            color = vaultPrimary,
-            trackColor = Color.White.copy(alpha = 0.08f)
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onExpand)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // カバーアートサムネイル
-            Box(
+        Column {
+            // 上端の細いプログレスライン
+            LinearProgressIndicator(
+                progress = { progress },
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF142034)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .height(2.dp),
+                color = accent,
+                trackColor = Color.White.copy(alpha = 0.08f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onExpand)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .navigationBarsPadding(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (work?.coverUrl != null) {
-                    AsyncImage(
-                        model = work?.coverUrl,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                // アルバムアート
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF142034)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (work?.coverUrl != null) {
+                        AsyncImage(
+                            model = work?.coverUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = accent.copy(alpha = 0.5f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // タイトル + アーティスト
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = trackTitle.ifEmpty { work?.title ?: "再生中" },
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                } else {
+                    val artist = work?.circle?.takeIf { it.isNotEmpty() } ?: work?.title ?: ""
+                    if (artist.isNotEmpty()) {
+                        Text(
+                            text = artist,
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // 再生 / 一時停止ボタン
+                IconButton(
+                    onClick = { viewModel.togglePlay() },
+                    modifier = Modifier.size(44.dp)
+                ) {
                     Icon(
-                        Icons.Default.MusicNote,
-                        contentDescription = null,
-                        tint = vaultPrimary.copy(alpha = 0.5f),
-                        modifier = Modifier.size(24.dp)
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "一時停止" else "再生",
+                        tint = Color.White,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // トラック名 / ワーク名
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = trackTitle.ifEmpty { "再生中" },
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = work?.title ?: "",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // 再生 / 一時停止
-            IconButton(onClick = { viewModel.togglePlay() }, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "再生/一時停止",
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-
-            // 閉じる
-            IconButton(onClick = { viewModel.stop() }, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "閉じる",
-                    tint = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
     }

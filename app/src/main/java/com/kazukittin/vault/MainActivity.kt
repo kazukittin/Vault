@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.kazukittin.vault.ui.audio.MiniPlayer
@@ -83,7 +81,8 @@ class MainActivity : ComponentActivity() {
                     audioPlayerViewModel.initController(applicationContext)
 
                     val hasActiveSession by audioPlayerViewModel.hasActiveSession.collectAsState()
-                    var isPlayerMinimized by remember { mutableStateOf(false) }
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
 
                     NavHost(navController = navController, startDestination = startDest) {
 
@@ -256,12 +255,7 @@ class MainActivity : ComponentActivity() {
                                         Toast.makeText(this@MainActivity, "ERROR: Work data null", Toast.LENGTH_SHORT).show()
                                         return@AudioDetailScreen
                                     }
-                                    Toast.makeText(this@MainActivity, "曲をタップしました: ${tracks[index].title}", Toast.LENGTH_SHORT).show()
-                                    android.util.Log.wtf("VaultDebug", ">>> TRACK CLICKED: ${tracks[index].title}")
                                     audioPlayerViewModel.playTracks(work, tracks, index)
-                                    Toast.makeText(this@MainActivity, "再生画面へ遷移します...", Toast.LENGTH_SHORT).show()
-                                    android.util.Log.wtf("VaultDebug", ">>> NAVIGATING TO PLAYER")
-                                    isPlayerMinimized = false
                                     navController.navigate("audio_player")
                                 },
                                 onBack = { navController.popBackStack() }
@@ -271,30 +265,17 @@ class MainActivity : ComponentActivity() {
                         composable("audio_player") {
                             com.kazukittin.vault.ui.audio.AudioPlayerScreen(
                                 viewModel = audioPlayerViewModel,
-                                onBack = {
-                                    isPlayerMinimized = true
-                                    navController.popBackStack()
-                                },
-                                onMinimize = {
-                                    isPlayerMinimized = true
-                                    navController.popBackStack()
-                                }
+                                onBack = { navController.popBackStack() },
+                                onMinimize = { navController.popBackStack() }
                             )
                         }
                     }
 
-                    // ミニプレイヤー：音声セッション中かつ最小化状態のとき表示
-                    if (hasActiveSession && isPlayerMinimized) {
+                    // ミニプレイヤー：再生中かつフルプレイヤー画面以外で表示
+                    if (hasActiveSession && currentRoute != "audio_player") {
                         MiniPlayer(
                             viewModel = audioPlayerViewModel,
-                            onExpand = {
-                                isPlayerMinimized = false
-                                navController.navigate("audio_player")
-                            },
-                            onClose = {
-                                audioPlayerViewModel.stop()
-                                isPlayerMinimized = false
-                            },
+                            onExpand = { navController.navigate("audio_player") },
                             modifier = Modifier.align(Alignment.BottomCenter)
                         )
                     }

@@ -9,7 +9,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.kazukittin.vault.ui.audio.MiniPlayer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -76,6 +81,9 @@ class MainActivity : ComponentActivity() {
                     // AudioPlayerViewModel is shared
                     val audioPlayerViewModel: com.kazukittin.vault.ui.audio.AudioPlayerViewModel = viewModel(factory = viewModelFactory)
                     audioPlayerViewModel.initController(applicationContext)
+
+                    val hasActiveSession by audioPlayerViewModel.hasActiveSession.collectAsState()
+                    var isPlayerMinimized by remember { mutableStateOf(false) }
 
                     NavHost(navController = navController, startDestination = startDest) {
 
@@ -253,6 +261,7 @@ class MainActivity : ComponentActivity() {
                                     audioPlayerViewModel.playTracks(work, tracks, index)
                                     Toast.makeText(this@MainActivity, "再生画面へ遷移します...", Toast.LENGTH_SHORT).show()
                                     android.util.Log.wtf("VaultDebug", ">>> NAVIGATING TO PLAYER")
+                                    isPlayerMinimized = false
                                     navController.navigate("audio_player")
                                 },
                                 onBack = { navController.popBackStack() }
@@ -262,9 +271,29 @@ class MainActivity : ComponentActivity() {
                         composable("audio_player") {
                             com.kazukittin.vault.ui.audio.AudioPlayerScreen(
                                 viewModel = audioPlayerViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onMinimize = {
+                                    isPlayerMinimized = true
+                                    navController.popBackStack()
+                                }
                             )
                         }
+                    }
+
+                    // ミニプレイヤー：音声セッション中かつ最小化状態のとき表示
+                    if (hasActiveSession && isPlayerMinimized) {
+                        MiniPlayer(
+                            viewModel = audioPlayerViewModel,
+                            onExpand = {
+                                isPlayerMinimized = false
+                                navController.navigate("audio_player")
+                            },
+                            onClose = {
+                                audioPlayerViewModel.stop()
+                                isPlayerMinimized = false
+                            },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
                     }
                 }
             }

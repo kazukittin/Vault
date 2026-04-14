@@ -1,11 +1,14 @@
 package com.kazukittin.vault.ui.audio
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -17,30 +20,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+
+// ─────────────────────────────────────────────────────────────
+// フル音声プレイヤー
+// ─────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioPlayerScreen(
     viewModel: AudioPlayerViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onMinimize: () -> Unit = onBack
 ) {
     val context = LocalContext.current
     val isPlaying by viewModel.isPlaying.collectAsState()
     val position by viewModel.position.collectAsState()
     val duration by viewModel.duration.collectAsState()
     val work by viewModel.currentWork.collectAsState()
+    val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
     val playbackError by viewModel.playbackError.collectAsState()
 
-    val vaultSurface = Color.Green // DEBUG: みどりいろ
-    val vaultPrimary = Color.Black // DEBUG: 黒（緑の上で見やすいように）
+    val bgDark   = Color(0xFF071327)
+    val bgMid    = Color(0xFF0D2040)
+    val primary  = Color(0xFFA1CCED)
 
     LaunchedEffect(Unit) {
         android.util.Log.wtf("VaultDebug", ">>> AudioPlayerScreen: COMPOSITION STARTED")
@@ -53,146 +65,257 @@ fun AudioPlayerScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text("DEBUG PLAYER", color = vaultPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        work?.let { Text(it.title, color = Color.Yellow, fontSize = 12.sp, maxLines = 1) }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(listOf(bgMid, bgDark))
             )
-        },
-        containerColor = vaultSurface
-    ) { padding ->
-        // Background Gradient
-        Box(modifier = Modifier.fillMaxSize().background(vaultSurface)) {
-            if (work == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = vaultPrimary)
-                    Text("WAITING FOR DATA...", color = Color.Yellow, modifier = Modifier.padding(top = 80.dp))
-                }
-            } else {
-                Column(
+    ) {
+        // ── 左上: 最小化ボタン ──
+        IconButton(
+            onClick = onMinimize,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 48.dp, start = 8.dp)
+                .size(48.dp)
+        ) {
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = "最小化",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+
+        if (work == null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = primary)
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+                    .padding(horizontal = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
+            ) {
+                Spacer(modifier = Modifier.height(56.dp)) // 最小化ボタン分のスペース
+
+                Spacer(modifier = Modifier.weight(0.06f))
+
+                // ── カバーアート ──
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+                        .weight(0.52f)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF142034)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    android.util.Log.i("VaultDebug", ">>> AudioPlayerScreen: Rendering UI for ${work?.title}")
-                    // Album Art with Shadow and Glow
-                    Box(
-                        modifier = Modifier
-                            .size(300.dp)
-                            .clip(MaterialTheme.shapes.extraLarge)
-                            .background(Color.Black.copy(alpha = 0.5f))
+                    AsyncImage(
+                        model = work?.coverUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        error = painterResource(android.R.drawable.ic_menu_report_image),
+                        placeholder = painterResource(android.R.drawable.ic_menu_gallery)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // ── トラック名 ──
+                Text(
+                    text = currentTrackTitle.ifEmpty { work?.title ?: "" },
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // ── ワーク / サークル名 ──
+                Text(
+                    text = work?.circle ?: "",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (playbackError != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = Color.Red.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        AsyncImage(
-                            model = work?.coverUrl,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                            error = painterResource(android.R.drawable.ic_menu_report_image),
-                            placeholder = painterResource(android.R.drawable.ic_menu_gallery)
+                        Text(
+                            text = playbackError!!,
+                            color = Color(0xFFFF8B8B),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(8.dp)
                         )
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                    // Work Info
-                    Text(
-                        text = work?.title ?: "",
+                // ── シークバー ──
+                val progress = if (duration > 0) position.toFloat() / duration.toFloat() else 0f
+                Slider(
+                    value = progress,
+                    onValueChange = { viewModel.seekTo((it * duration).toLong()) },
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = primary,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(formatTime(position), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    Text(formatTime(duration), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── 再生コントロール ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    IconButton(onClick = { viewModel.previous() }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.SkipPrevious, "前へ", tint = Color.White, modifier = Modifier.size(36.dp))
+                    }
+                    Surface(
+                        onClick = { viewModel.togglePlay() },
+                        shape = CircleShape,
                         color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    Text(
-                        text = work?.circle ?: "",
-                        color = vaultPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    if (playbackError != null) {
-                        Surface(
-                            color = Color.Red.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.padding(8.dp)
-                        ) {
-                            Text(
-                                text = playbackError!!,
-                                color = Color(0xFFFF8B8B),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(8.dp)
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                "再生/一時停止",
+                                tint = bgDark,
+                                modifier = Modifier.size(36.dp)
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Seek Bar
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Slider(
-                            value = if (duration > 0) position.toFloat() / duration.toFloat() else 0f,
-                            onValueChange = { viewModel.seekTo((it * duration).toLong()) },
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = vaultPrimary,
-                                inactiveTrackColor = Color.Gray.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(formatTime(position), color = Color.LightGray, fontSize = 12.sp)
-                            Text(formatTime(duration), color = Color.LightGray, fontSize = 12.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Controls
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(24.dp)
-                    ) {
-                        IconButton(onClick = { viewModel.previous() }, modifier = Modifier.size(56.dp)) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = vaultPrimary, modifier = Modifier.size(40.dp))
-                        }
-
-                        ElevatedButton(
-                            onClick = { viewModel.togglePlay() },
-                            colors = ButtonDefaults.elevatedButtonColors(containerColor = vaultPrimary),
-                            modifier = Modifier.size(80.dp),
-                            shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            val icon = if (isPlaying) {
-                                painterResource(android.R.drawable.ic_media_pause)
-                            } else {
-                                painterResource(android.R.drawable.ic_media_play)
-                            }
-                            Icon(painter = icon, contentDescription = "Play/Pause", tint = vaultSurface, modifier = Modifier.size(40.dp))
-                        }
-
-                        IconButton(onClick = { viewModel.next() }, modifier = Modifier.size(56.dp)) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = vaultPrimary, modifier = Modifier.size(40.dp))
-                        }
+                    IconButton(onClick = { viewModel.next() }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.SkipNext, "次へ", tint = Color.White, modifier = Modifier.size(36.dp))
                     }
                 }
+
+                Spacer(modifier = Modifier.weight(0.08f))
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ミニプレイヤー（画面下部に常時表示）
+// ─────────────────────────────────────────────────────────────
+
+@Composable
+fun MiniPlayer(
+    viewModel: AudioPlayerViewModel,
+    onExpand: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isPlaying by viewModel.isPlaying.collectAsState()
+    val work by viewModel.currentWork.collectAsState()
+    val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
+
+    val bgColor = Color(0xFF0D2040)
+    val primary  = Color(0xFFA1CCED)
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onExpand() },
+        color = bgColor,
+        shadowElevation = 12.dp,
+        shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // カバーアート
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF142034))
+            ) {
+                AsyncImage(
+                    model = work?.coverUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // タイトル / アーティスト
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = currentTrackTitle.ifEmpty { work?.title ?: "" },
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!work?.circle.isNullOrEmpty()) {
+                    Text(
+                        text = work?.circle ?: "",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // 再生 / 一時停止
+            IconButton(
+                onClick = { viewModel.togglePlay() },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = "再生/一時停止",
+                    tint = primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            // 閉じるボタン
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "閉じる",
+                    tint = Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -202,5 +325,5 @@ private fun formatTime(ms: Long): String {
     val totalSeconds = ms / 1000
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
+    return "%02d:%02d".format(minutes, seconds)
 }

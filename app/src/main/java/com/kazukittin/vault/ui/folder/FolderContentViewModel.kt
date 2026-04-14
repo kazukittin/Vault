@@ -2,8 +2,11 @@ package com.kazukittin.vault.ui.folder
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kazukittin.vault.data.local.db.MangaBookmarkDao
+import com.kazukittin.vault.data.local.db.MangaBookmarkEntity
 import com.kazukittin.vault.data.remote.SynoFolder
 import com.kazukittin.vault.data.repository.FolderRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +16,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 import java.util.regex.Pattern
 
 /**
@@ -20,7 +24,8 @@ import java.util.regex.Pattern
  * MainActivity レベルで生成され、フォルダ遷移のたびに reset() を呼ぶ。
  */
 class FolderContentViewModel(
-    private val folderRepository: FolderRepository
+    private val folderRepository: FolderRepository,
+    private val mangaBookmarkDao: MangaBookmarkDao
 ) : ViewModel() {
 
     companion object {
@@ -56,63 +61,73 @@ class FolderContentViewModel(
     private val _metadataCache = MutableStateFlow<Map<String, DlSiteProductInfo>>(emptyMap())
     val metadataCache = _metadataCache.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
+    // しおりキャッシュ（zipPath → BookmarkEntity）
+    private val _bookmarks = MutableStateFlow<Map<String, MangaBookmarkEntity>>(emptyMap())
+    val bookmarks: StateFlow<Map<String, MangaBookmarkEntity>> = _bookmarks.asStateFlow()
+
+    fun loadBookmarks() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val all = mangaBookmarkDao.getAllBookmarks()
+            _bookmarks.value = all.associateBy { it.zipPath }
+        }
+    }
 
     private val _selectedCircle = MutableStateFlow<String?>(null)
     val selectedCircle = _selectedCircle.asStateFlow()
 
-    private val _selectedAuthor = MutableStateFlow<String?>(null)
-    val selectedAuthor = _selectedAuthor.asStateFlow()
-
     private val _selectedTag = MutableStateFlow<String?>(null)
     val selectedTag = _selectedTag.asStateFlow()
 
-    // 利用可能なフィルタ候補を計算
-    val availableFilters = _metadataCache.map { cache ->
-        val circles = cache.values.mapNotNull { it.maker_name }.distinct().sorted()
-        val authors = cache.values.flatMap { it.creaters?.author ?: emptyList() }.mapNotNull { it.name }.distinct().sorted()
-        val tags = cache.values.flatMap { it.genres ?: emptyList() }.mapNotNull { it.name }.distinct().sorted()
-        Triple(circles, authors, tags)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Triple(emptyList(), emptyList(), emptyList()))
+    // DLSite の work_type とフォルダカテゴリの対応
+    // マンガフォルダにはマンガ作品のジャンルだけ、ボイスフォルダにはボイス作品のジャンルだけ表示する
+    private val categoryWorkTypes = mapOf(
+        "マンガ" to setOf("MNG"),
+        "ボイス" to setOf("SOU")
+    )
 
-    // 検索・フィルタ・ソートを適用したアイテムリスト
+    // 利用可能なフィルタ候補（サークル・ジャンル）を計算
+    val availableFilters = _metadataCache.map { cache ->
+        val allowedTypes = categoryWorkTypes[folderCategory]
+        // work_type でフィルタ（null は未分類として含める、カテゴリ未設定なら全件）
+        val relevant = if (allowedTypes != null) {
+            cache.values.filter { it.work_type in allowedTypes || it.work_type == null }
+        } else {
+            cache.values.toList()
+        }
+        val circles = relevant.mapNotNull { it.maker_name }.distinct().sorted()
+        val tags = relevant.flatMap { it.genres ?: emptyList() }.mapNotNull { it.name }.distinct().sorted()
+        Pair(circles, tags)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(emptyList(), emptyList()))
+
+    // フィルタ・ソートを適用したアイテムリスト
     val displayItems = combine(
-        listOf(_items, _sortOrder, _searchQuery, _metadataCache, _selectedCircle, _selectedAuthor, _selectedTag)
+        listOf(_items, _sortOrder, _metadataCache, _selectedCircle, _selectedTag)
     ) { args ->
         val items = args[0] as List<SynoFolder>
         val order = args[1] as SortOrder
-        val query = args[2] as String
-        val cache = args[3] as Map<String, DlSiteProductInfo>
-        val selCircle = args[4] as String?
-        val selAuthor = args[5] as String?
-        val selTag = args[6] as String?
+        val cache = args[2] as Map<String, DlSiteProductInfo>
+        val selCircle = args[3] as String?
+        val selTag = args[4] as String?
 
-        var filtered = items.filter { item ->
+        val filtered = items.filter { item ->
             val rjMatch = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
             val rjCode = rjMatch?.value?.uppercase()
             val info = if (rjCode != null) cache[rjCode] else null
-            
-            // 1. テキスト検索
-            val matchesQuery = if (query.isEmpty()) true else {
-                item.name.contains(query, ignoreCase = true) ||
-                info?.let {
-                    it.work_name?.contains(query, ignoreCase = true) == true ||
-                    it.maker_name?.contains(query, ignoreCase = true) == true ||
-                    it.creaters?.voice_by?.any { v -> v.name?.contains(query, ignoreCase = true) == true } == true
-                } ?: false
-            }
 
-            // 2. 属性フィルタ
             val matchesCircle = selCircle == null || info?.maker_name == selCircle
-            val matchesAuthor = selAuthor == null || info?.creaters?.author?.any { it.name == selAuthor } == true
             val matchesTag = selTag == null || info?.genres?.any { it.name == selTag } == true
-            
-            matchesQuery && matchesCircle && matchesAuthor && matchesTag
+
+            matchesCircle && matchesTag
         }
 
         when (order) {
-            SortOrder.DEFAULT -> filtered
+            SortOrder.DEFAULT -> filtered.sortedWith(
+                // メタデータ取得済みを先頭に、同グループ内は元の順序を維持（stable sort）
+                compareByDescending { item ->
+                    val rjCode = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)?.value?.uppercase()
+                    rjCode != null && cache.containsKey(rjCode)
+                }
+            )
             SortOrder.RJ_ASC -> filtered.sortedWith(rjComparator(true))
             SortOrder.RJ_DESC -> filtered.sortedWith(rjComparator(false))
         }
@@ -133,9 +148,7 @@ class FolderContentViewModel(
         // 状態をリセット
         _items.value = emptyList()
         _metadataCache.value = emptyMap()
-        _searchQuery.value = ""
         _selectedCircle.value = null
-        _selectedAuthor.value = null
         _selectedTag.value = null
         currentOffset = 0
         totalItems = Int.MAX_VALUE
@@ -174,6 +187,9 @@ class FolderContentViewModel(
             isFirstLoadDone = true
             _isLoading.value = false
             _isLoadingMore.value = false
+
+            // アイテム更新のたびにメタデータ取得を試みる（UIのLaunchedEffectに依存しない）
+            fetchMetadataForRJItems()
         }
     }
 
@@ -185,12 +201,7 @@ class FolderContentViewModel(
         _sortOrder.value = order
     }
 
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
     fun selectCircle(circle: String?) { _selectedCircle.value = circle }
-    fun selectAuthor(author: String?) { _selectedAuthor.value = author }
     fun selectTag(tag: String?) { _selectedTag.value = tag }
 
     private fun rjComparator(ascending: Boolean) = Comparator<SynoFolder> { a, b ->
@@ -209,8 +220,10 @@ class FolderContentViewModel(
         return match?.groupValues?.get(1)?.toLongOrNull() ?: Long.MAX_VALUE
     }
 
-    /** RJコードから詳細メタデータを非同期で取得してキャッシュを更新する */
+    /** RJコードから詳細メタデータを非同期で取得してキャッシュを更新する（マンガ・ボイスのみ） */
     fun fetchMetadataForRJItems() {
+        if (folderCategory != "マンガ" && folderCategory != "ボイス") return
+
         val rjItems = _items.value.mapNotNull { item ->
             val match = Regex("RJ(\\d+)", RegexOption.IGNORE_CASE).find(item.name)
             match?.value?.uppercase()

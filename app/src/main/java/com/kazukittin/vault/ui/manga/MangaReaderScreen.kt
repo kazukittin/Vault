@@ -3,6 +3,7 @@ package com.kazukittin.vault.ui.manga
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -27,17 +28,19 @@ fun MangaReaderScreen(
     viewModel: MangaReaderViewModel,
     downloadUrl: String,
     zipName: String,
+    zipPath: String,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val currentPage by viewModel.currentPage.collectAsState()
+    val restoredPage by viewModel.restoredPage.collectAsState()
 
     val vaultSurface = Color(0xFF000000)
     val vaultPrimary = Color(0xFFA1CCED)
 
     LaunchedEffect(downloadUrl) {
-        viewModel.loadZip(context, downloadUrl, zipName)
+        viewModel.loadZip(context, downloadUrl, zipName, zipPath)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(vaultSurface)) {
@@ -93,6 +96,28 @@ fun MangaReaderScreen(
 
                 LaunchedEffect(pagerState.currentPage) {
                     viewModel.goToPage(pagerState.currentPage)
+                }
+
+                // しおりバナー（3秒後に自動消灯）
+                if (restoredPage != null) {
+                    LaunchedEffect(restoredPage) {
+                        kotlinx.coroutines.delay(3000)
+                        viewModel.clearRestoredPage()
+                    }
+                    Surface(
+                        color = vaultPrimary.copy(alpha = 0.9f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 96.dp)
+                    ) {
+                        Text(
+                            "しおり: ${restoredPage!! + 1}ページから再開",
+                            color = Color.Black,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
                 }
 
                 HorizontalPager(

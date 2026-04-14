@@ -14,6 +14,10 @@ interface FolderDao {
     @Query("SELECT * FROM folders")
     fun getAllFolders(): Flow<List<FolderEntity>>
 
+    /** 同期時に既存データのスナップショットを取るための非Flowクエリ */
+    @Query("SELECT * FROM folders")
+    fun getAllFoldersSnapshot(): List<FolderEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertFolders(folders: List<FolderEntity>) // suspendを外す一時的な回避
 

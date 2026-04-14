@@ -8,31 +8,40 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kazukittin.vault.data.remote.VideoThumbnailUrl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,19 +53,19 @@ fun FolderContentScreen(
     onPhotoClick: (Int) -> Unit,
     onZipClick: (path: String, name: String) -> Unit = { _, _ -> }
 ) {
-    val items by viewModel.displayItems.collectAsState() // 検索・ソート済みのアイテムを使用
+    val items by viewModel.displayItems.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasReachedEnd by viewModel.hasReachedEnd.collectAsState()
-    val currentSortOrder by viewModel.sortOrder.collectAsState()
     val metadataCache by viewModel.metadataCache.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     val folderCategory = viewModel.folderCategory
-    
+
     val selectedCircle by viewModel.selectedCircle.collectAsState()
-    val selectedAuthor by viewModel.selectedAuthor.collectAsState()
     val selectedTag by viewModel.selectedTag.collectAsState()
     val availableFilters by viewModel.availableFilters.collectAsState()
+    val bookmarks by viewModel.bookmarks.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.loadBookmarks() }
 
     val imageItems = remember(items) { items.filter { !it.isDir } }
 
@@ -64,12 +73,7 @@ fun FolderContentScreen(
     val vaultContainer = Color(0xFF142034)
     val vaultPrimary   = Color(0xFFA1CCED)
 
-    // グリッドのスクロール状態を監視して末尾に近づいたら次ページを読み込む
-    // データが更新されたらメタデータの取得を開始
-    LaunchedEffect(items) {
-        viewModel.fetchMetadataForRJItems()
-    }
-
+    // メタデータ取得は loadNextPage 完了後に ViewModel 側で自動実行されるため UI 側のトリガー不要
     val gridState = rememberLazyGridState()
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -88,84 +92,46 @@ fun FolderContentScreen(
     }
 
 
+    val (circles, tags) = availableFilters
+    val activeFilterCount = listOfNotNull(selectedCircle, selectedTag).size
+    var showFilterSheet by remember { mutableStateOf(false) }
+
+    if (showFilterSheet) {
+        FilterModalSheet(
+            circles = circles,
+            tags = tags,
+            selectedCircle = selectedCircle,
+            selectedTag = selectedTag,
+            onCircleSelect = { viewModel.selectCircle(it) },
+            onTagSelect = { viewModel.selectTag(it) },
+            onDismiss = { showFilterSheet = false },
+            vaultPrimary = vaultPrimary,
+            vaultContainer = vaultContainer
+        )
+    }
+
     Scaffold(
         topBar = {
-            var isSearchActive by remember { mutableStateOf(false) }
             TopAppBar(
-                title = {
-                    if (isSearchActive) {
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.updateSearchQuery(it) },
-                            placeholder = { Text("サークル名、声優名などで検索", color = Color.White.copy(alpha = 0.5f)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = vaultContainer,
-                                unfocusedContainerColor = vaultContainer,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            singleLine = true
-                        )
-                    } else {
-                        Text(folderName, color = Color.White, fontSize = 18.sp)
-                    }
-                },
+                title = { Text(folderName, color = Color.White, fontSize = 18.sp) },
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (isSearchActive) {
-                                isSearchActive = false
-                                viewModel.updateSearchQuery("")
-                            } else {
-                                onBack()
-                            }
-                        }
-                    ) {
-                        Icon(
-                            if (isSearchActive) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
                 actions = {
-                    if (!isSearchActive) {
-                        IconButton(onClick = { isSearchActive = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", tint = vaultPrimary)
+                    if (folderCategory != "画像" && (circles.isNotEmpty() || tags.isNotEmpty())) {
+                        BadgedBox(
+                            badge = {
+                                if (activeFilterCount > 0) {
+                                    Badge { Text("$activeFilterCount") }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { showFilterSheet = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "絞り込み", tint = vaultPrimary)
+                            }
                         }
-                    }
-                    var showSortMenu by remember { mutableStateOf(false) }
-                    IconButton(onClick = { showSortMenu = true }) {
-                        Text(
-                            when(currentSortOrder) {
-                                FolderContentViewModel.SortOrder.DEFAULT -> "≡"
-                                FolderContentViewModel.SortOrder.RJ_ASC -> "RJ↑"
-                                FolderContentViewModel.SortOrder.RJ_DESC -> "RJ↓"
-                            },
-                            color = vaultPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showSortMenu,
-                        onDismissRequest = { showSortMenu = false },
-                        modifier = Modifier.background(vaultContainer)
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("デフォルト順", color = Color.White) },
-                            onClick = { viewModel.changeSortOrder(FolderContentViewModel.SortOrder.DEFAULT); showSortMenu = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("RJコード昇順", color = Color.White) },
-                            onClick = { viewModel.changeSortOrder(FolderContentViewModel.SortOrder.RJ_ASC); showSortMenu = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("RJコード降順", color = Color.White) },
-                            onClick = { viewModel.changeSortOrder(FolderContentViewModel.SortOrder.RJ_DESC); showSortMenu = false }
-                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = vaultSurface)
@@ -174,19 +140,6 @@ fun FolderContentScreen(
         containerColor = vaultSurface
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            // フィルタバー（マンガ・ボイスのみ表示）
-            if (folderCategory == "マンガ" || folderCategory == "ボイス") {
-                FilterBar(
-                    availableFilters = availableFilters,
-                    selectedCircle = selectedCircle,
-                    selectedAuthor = selectedAuthor,
-                    selectedTag = selectedTag,
-                    onCircleSelect = { viewModel.selectCircle(it) },
-                    onAuthorSelect = { viewModel.selectAuthor(it) },
-                    onTagSelect = { viewModel.selectTag(it) },
-                    vaultPrimary = vaultPrimary
-                )
-            }
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -239,14 +192,19 @@ fun FolderContentScreen(
                                             val info = if (rjCode != null) metadataCache[rjCode] else null
 
                                             if (info != null) {
-                                                // サークル名
-                                                Text(
-                                                    info.maker_name ?: "Unknown",
-                                                    color = vaultPrimary,
-                                                    fontSize = 9.sp,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
+                                                // サークル名（上段）: maker_name → author → illustration の順で最初に見つかったものを使用
+                                                val circleName = info.maker_name
+                                                    ?: info.creaters?.author?.firstOrNull()?.name
+                                                    ?: info.creaters?.illustration?.firstOrNull()?.name
+                                                if (circleName != null) {
+                                                    Text(
+                                                        circleName,
+                                                        color = vaultPrimary,
+                                                        fontSize = 9.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
                                                 // ボイスフォルダなら声優名を表示
                                                 if (folderCategory == "ボイス") {
                                                     val voices = info.creaters?.voice_by?.joinToString(", ") { v -> v.name ?: "" }
@@ -261,8 +219,12 @@ fun FolderContentScreen(
                                                     }
                                                 }
                                             }
+                                            // 下段：マンガかつDLSiteタイトルあればwork_name、それ以外はフォルダ名
                                             Text(
-                                                item.name,
+                                                if ((folderCategory == "マンガ" || folderCategory == "ボイス") && info?.work_name != null)
+                                                    info.work_name
+                                                else
+                                                    item.name,
                                                 color = Color.White,
                                                 fontSize = 11.sp,
                                                 maxLines = 1,
@@ -324,14 +286,19 @@ fun FolderContentScreen(
                                             val info = if (rjCode != null) metadataCache[rjCode] else null
 
                                             if (info != null) {
-                                                // サークル名
-                                                Text(
-                                                    info.maker_name ?: "Unknown",
-                                                    color = Color(0xFF88CC88),
-                                                    fontSize = 9.sp,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
+                                                // サークル名（上段）: maker_name → author → illustration の順で最初に見つかったものを使用
+                                                val circleName = info.maker_name
+                                                    ?: info.creaters?.author?.firstOrNull()?.name
+                                                    ?: info.creaters?.illustration?.firstOrNull()?.name
+                                                if (circleName != null) {
+                                                    Text(
+                                                        circleName,
+                                                        color = Color(0xFF88CC88),
+                                                        fontSize = 9.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
                                                 // ボイスフォルダなら声優名を表示
                                                 if (folderCategory == "ボイス") {
                                                     val voices = info.creaters?.voice_by?.joinToString(", ") { v -> v.name ?: "" }
@@ -346,8 +313,12 @@ fun FolderContentScreen(
                                                     }
                                                 }
                                             }
+                                            // 下段：マンガかつDLSiteタイトルあればwork_name、それ以外はファイル名
                                             Text(
-                                                item.name.substringBeforeLast("."),
+                                                if ((folderCategory == "マンガ" || folderCategory == "ボイス") && info?.work_name != null)
+                                                    info.work_name
+                                                else
+                                                    item.name.substringBeforeLast("."),
                                                 color = Color(0xFF88CC88),
                                                 fontSize = 11.sp,
                                                 maxLines = 1,
@@ -363,23 +334,57 @@ fun FolderContentScreen(
                                     ) {
                                         Text("ZIP", color = Color(0xFF88CC88), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 4.dp))
                                     }
+                                    // しおりバッジ（左上）
+                                    val bookmark = bookmarks[item.path]
+                                    if (bookmark != null) {
+                                        Surface(
+                                            color = Color(0xFFA1CCED).copy(alpha = 0.9f),
+                                            shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp),
+                                            modifier = Modifier.align(Alignment.TopStart)
+                                        ) {
+                                            Text(
+                                                "${bookmark.page + 1}/${bookmark.totalPages}p",
+                                                color = Color.Black,
+                                                fontSize = 9.sp,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             } else {
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text("📦", fontSize = 32.sp)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        item.name.substringBeforeLast("."),
-                                        color = Color(0xFF88CC88),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 2,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    )
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text("📦", fontSize = 32.sp)
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            item.name.substringBeforeLast("."),
+                                            color = Color(0xFF88CC88),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 2,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        )
+                                    }
+                                    // しおりバッジ（左上）
+                                    val bookmark = bookmarks[item.path]
+                                    if (bookmark != null) {
+                                        Surface(
+                                            color = Color(0xFFA1CCED).copy(alpha = 0.9f),
+                                            shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp),
+                                            modifier = Modifier.align(Alignment.TopStart)
+                                        ) {
+                                            Text(
+                                                "${bookmark.page + 1}/${bookmark.totalPages}p",
+                                                color = Color.Black,
+                                                fontSize = 9.sp,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -438,10 +443,13 @@ fun FolderContentScreen(
                                         if (mediaIndex >= 0) onPhotoClick(mediaIndex)
                                     }
                             ) {
-                                // 動画サムネイル（DLSite優先、なければNAS）
+                                // 動画サムネイル（DLSite優先、なければ動画から最初のフレームを抽出）
+                                val videoData = if (dlSiteUrl != null) dlSiteUrl
+                                    else viewModel.getOriginalImageUrl(item.path)
+                                        ?.let { VideoThumbnailUrl(it) }
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
-                                        .data(dlSiteUrl ?: viewModel.getThumbnailUrl(item.path))
+                                        .data(videoData)
                                         .crossfade(true)
                                         .size(300, 300)
                                         .build(),
@@ -540,79 +548,99 @@ fun FolderContentScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun FilterBar(
-    availableFilters: Triple<List<String>, List<String>, List<String>>,
+fun FilterModalSheet(
+    circles: List<String>,
+    tags: List<String>,
     selectedCircle: String?,
-    selectedAuthor: String?,
     selectedTag: String?,
     onCircleSelect: (String?) -> Unit,
-    onAuthorSelect: (String?) -> Unit,
     onTagSelect: (String?) -> Unit,
-    vaultPrimary: Color
+    onDismiss: () -> Unit,
+    vaultPrimary: Color,
+    vaultContainer: Color
 ) {
-    val (circles, authors, tags) = availableFilters
-    
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        // サークル
-        if (circles.isNotEmpty()) {
-            FilterRow("サークル", circles, selectedCircle, onCircleSelect, vaultPrimary)
-        }
-        // 作者
-        if (authors.isNotEmpty()) {
-            FilterRow("作者", authors, selectedAuthor, onAuthorSelect, vaultPrimary)
-        }
-        // タグ
-        if (tags.isNotEmpty()) {
-            FilterRow("タグ", tags, selectedTag, onTagSelect, vaultPrimary)
-        }
-    }
-}
-
-@Composable
-fun FilterRow(
-    label: String,
-    options: List<String>,
-    selected: String?,
-    onSelect: (String?) -> Unit,
-    vaultPrimary: Color
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = vaultContainer
     ) {
-        Text(
-            label, 
-            color = Color.White.copy(alpha = 0.5f), 
-            fontSize = 10.sp, 
-            modifier = Modifier.padding(horizontal = 12.dp).width(50.dp)
-        )
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp)
         ) {
-            options.forEach { option ->
-                val isSelected = option == selected
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onSelect(if (isSelected) null else option) },
-                    label = { Text(option, fontSize = 10.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = vaultPrimary.copy(alpha = 0.2f),
-                        selectedLabelColor = vaultPrimary,
-                        labelColor = Color.White.copy(alpha = 0.7f),
-                        containerColor = Color.Transparent
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = isSelected,
-                        borderColor = Color.White.copy(alpha = 0.1f),
-                        selectedBorderColor = vaultPrimary.copy(alpha = 0.5f),
-                        borderWidth = 0.5.dp
-                    )
-                )
+            // ヘッダー
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("絞り込み", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { onCircleSelect(null); onTagSelect(null) }) {
+                    Text("リセット", color = vaultPrimary)
+                }
             }
-            Spacer(modifier = Modifier.width(16.dp))
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (circles.isNotEmpty()) {
+                Text("サークル", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    circles.forEach { circle ->
+                        val isSelected = circle == selectedCircle
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onCircleSelect(if (isSelected) null else circle) },
+                            label = { Text(circle, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = vaultPrimary.copy(alpha = 0.2f),
+                                selectedLabelColor = vaultPrimary,
+                                labelColor = Color.White.copy(alpha = 0.7f),
+                                containerColor = Color.Transparent
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = Color.White.copy(alpha = 0.15f),
+                                selectedBorderColor = vaultPrimary.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            if (tags.isNotEmpty()) {
+                Text("ジャンル", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    tags.forEach { tag ->
+                        val isSelected = tag == selectedTag
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onTagSelect(if (isSelected) null else tag) },
+                            label = { Text(tag, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = vaultPrimary.copy(alpha = 0.2f),
+                                selectedLabelColor = vaultPrimary,
+                                labelColor = Color.White.copy(alpha = 0.7f),
+                                containerColor = Color.Transparent
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = Color.White.copy(alpha = 0.15f),
+                                selectedBorderColor = vaultPrimary.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 }

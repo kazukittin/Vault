@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kazukittin.vault.data.local.db.MangaBookmarkDao
+import com.kazukittin.vault.data.local.db.MangaBookmarkEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +27,9 @@ sealed class MangaLoadState {
     data class Error(val message: String) : MangaLoadState()
 }
 
-class MangaReaderViewModel : ViewModel() {
+class MangaReaderViewModel(
+    private val bookmarkDao: MangaBookmarkDao
+) : ViewModel() {
 
     private val _state = MutableStateFlow<MangaLoadState>(MangaLoadState.Idle)
     val state: StateFlow<MangaLoadState> = _state.asStateFlow()
@@ -33,18 +37,31 @@ class MangaReaderViewModel : ViewModel() {
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
 
+    // しおりから復元したページ（バナー表示用）
+    private val _restoredPage = MutableStateFlow<Int?>(null)
+    val restoredPage: StateFlow<Int?> = _restoredPage.asStateFlow()
+
+    private var zipPath: String = ""
     private var cachedZipFile: File? = null
 
-    fun loadZip(context: Context, downloadUrl: String, zipName: String) {
+    fun loadZip(context: Context, downloadUrl: String, zipName: String, zipPath: String) {
         if (_state.value is MangaLoadState.Ready) return
+        this.zipPath = zipPath
 
         viewModelScope.launch {
             try {
+                // しおりを読み込む
+                val bookmark = withContext(Dispatchers.IO) { bookmarkDao.getBookmark(zipPath) }
+                if (bookmark != null) {
+                    _currentPage.value = bookmark.page
+                    _restoredPage.value = bookmark.page
+                }
+
                 // 1. ZIPをキャッシュにダウンロード
                 val zipFile = downloadZip(context, downloadUrl, zipName)
                 cachedZipFile = zipFile
 
-                // 2. ZIPの中身を全て展開（一括展開に戻す）
+                // 2. ZIPの中身を全て展開
                 _state.value = MangaLoadState.Extracting
                 val pages = extractImages(context, zipFile, zipName)
 
@@ -62,6 +79,18 @@ class MangaReaderViewModel : ViewModel() {
 
     fun goToPage(page: Int) {
         _currentPage.value = page
+        if (zipPath.isNotEmpty()) {
+            val totalPages = (_state.value as? MangaLoadState.Ready)?.pages?.size ?: 0
+            viewModelScope.launch(Dispatchers.IO) {
+                bookmarkDao.insertBookmark(
+                    MangaBookmarkEntity(zipPath = zipPath, page = page, totalPages = totalPages)
+                )
+            }
+        }
+    }
+
+    fun clearRestoredPage() {
+        _restoredPage.value = null
     }
 
     private suspend fun downloadZip(context: Context, downloadUrl: String, zipName: String): File =

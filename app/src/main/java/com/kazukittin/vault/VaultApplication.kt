@@ -6,11 +6,15 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
+import com.kazukittin.vault.data.remote.VideoThumbnailFetcher
 import com.kazukittin.vault.data.remote.VaultNetworkClient
 
 class VaultApplication : Application(), ImageLoaderFactory {
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
+            .components {
+                add(VideoThumbnailFetcher.Factory())
+            }
             // 共通のOkHttpClient（SsidInterceptor等を含む）を使用
             .okHttpClient { VaultNetworkClient.getOkHttpClient(this) }
             .memoryCache {

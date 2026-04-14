@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         val photosApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createPhotosApi(applicationContext, savedIp)
         val dlSiteApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createDlSiteApi()
         val db = com.kazukittin.vault.data.local.db.VaultDatabase.getDatabase(applicationContext)
-        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, dlSiteApi, db.folderDao(), authRepository)
+        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, dlSiteApi, db.folderDao(), db.dlSiteCacheDao(), authRepository)
         val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(authManager, photosApi, dlSiteApi, db.audioDao(), authRepository)
 
         val viewModelFactory = object : ViewModelProvider.Factory {
@@ -67,7 +67,9 @@ class MainActivity : ComponentActivity() {
                         viewModel(factory = object : ViewModelProvider.Factory {
                             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                                 @Suppress("UNCHECKED_CAST")
-                                return com.kazukittin.vault.ui.folder.FolderContentViewModel(folderRepository) as T
+                                return com.kazukittin.vault.ui.folder.FolderContentViewModel(
+                                    folderRepository, db.mangaBookmarkDao()
+                                ) as T
                             }
                         })
 
@@ -110,7 +112,6 @@ class MainActivity : ComponentActivity() {
                                     val encodedCat = java.net.URLEncoder.encode(cat, "UTF-8")
                                     navController.navigate("folder/$encodedPath?name=$encodedName&cat=$encodedCat")
                                 },
-                                onAudioClick = { navController.navigate("audio_library") },
                                 onSetCategory = { id, cat -> homeViewModel.setFolderCategory(id, cat) }
                             )
                         }
@@ -168,6 +169,7 @@ class MainActivity : ComponentActivity() {
                             // フォルダ画面と同じVMを使うことで、同じitemsリストを参照しインデックスが正確に一致する
                             com.kazukittin.vault.ui.viewer.PhotoViewerScreen(
                                 viewModel = folderViewModel,
+                                audioPlayerViewModel = audioPlayerViewModel,
                                 initialIndex = startIndex,
                                 onBack = { navController.popBackStack() }
                             )
@@ -193,12 +195,23 @@ class MainActivity : ComponentActivity() {
                             val downloadUrl = "http://$ip:5000/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=$pathParam&mode=download&_sid=$sid"
 
                             val mangaViewModel: com.kazukittin.vault.ui.manga.MangaReaderViewModel =
-                                androidx.lifecycle.viewmodel.compose.viewModel(key = decodedPath)
+                                androidx.lifecycle.viewmodel.compose.viewModel(
+                                    key = decodedPath,
+                                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                                            @Suppress("UNCHECKED_CAST")
+                                            return com.kazukittin.vault.ui.manga.MangaReaderViewModel(
+                                                db.mangaBookmarkDao()
+                                            ) as T
+                                        }
+                                    }
+                                )
 
                             com.kazukittin.vault.ui.manga.MangaReaderScreen(
                                 viewModel = mangaViewModel,
                                 downloadUrl = downloadUrl,
                                 zipName = name,
+                                zipPath = decodedPath,
                                 onBack = { navController.popBackStack() }
                             )
                         }

@@ -83,6 +83,9 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    // Compose Animation (AnimatedVisibility等)
+    implementation("androidx.compose.animation:animation")
+
     // Compose Icons
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")

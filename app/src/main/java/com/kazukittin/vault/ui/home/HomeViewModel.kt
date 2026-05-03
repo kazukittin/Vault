@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kazukittin.vault.data.local.db.FolderEntity
 import com.kazukittin.vault.data.repository.AuthRepository
 import com.kazukittin.vault.data.repository.FolderRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -15,20 +16,39 @@ class HomeViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    // DBから常に最新の「すべてのフォルダ」を受け取る
     val allFolders: StateFlow<List<FolderEntity>> = folderRepository.getAllFolders()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // DBから常に最新の「ピン留めフォルダ」を受け取る
     val pinnedFolders: StateFlow<List<FolderEntity>> = folderRepository.getPinnedFolders()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    private val _isConnecting = MutableStateFlow(true)
+    val isConnecting: StateFlow<Boolean> = _isConnecting
+
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError
+
     init {
-        // 起動時: まずセッションを検証・必要なら自動再ログイン → その後データ同期
+        sync()
+    }
+
+    private fun sync() {
         viewModelScope.launch {
-            authRepository.validateOrRefreshSession()
-            folderRepository.syncFolders()
+            _isConnecting.value = true
+            _connectionError.value = null
+
+            val sessionOk = authRepository.validateOrRefreshSession()
+            val syncOk = if (sessionOk) folderRepository.syncFolders() else false
+
+            _isConnecting.value = false
+            if (!syncOk) {
+                _connectionError.value = "NASに接続できませんでした"
+            }
         }
+    }
+
+    fun retryConnection() {
+        sync()
     }
 
     fun setFolderCategory(folderId: String, category: String?) {

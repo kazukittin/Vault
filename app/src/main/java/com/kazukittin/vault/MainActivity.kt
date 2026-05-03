@@ -34,19 +34,20 @@ class MainActivity : ComponentActivity() {
         val authManager = VaultAuthManager(applicationContext)
         val authRepository = AuthRepository(authManager, applicationContext)
 
-        val savedIp = authManager.getNasIp() ?: "192.168.10.115"
-        val photosApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createPhotosApi(applicationContext, savedIp)
         val dlSiteApi = com.kazukittin.vault.data.remote.VaultNetworkClient.createDlSiteApi()
         val db = com.kazukittin.vault.data.local.db.VaultDatabase.getDatabase(applicationContext)
-        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(authManager, photosApi, dlSiteApi, db.folderDao(), db.dlSiteCacheDao(), authRepository)
-        val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(authManager, photosApi, dlSiteApi, db.audioDao(), authRepository)
+        val folderRepository = com.kazukittin.vault.data.repository.FolderRepository(applicationContext, authManager, dlSiteApi, db.folderDao(), db.dlSiteCacheDao(), authRepository)
+        val audioRepository = com.kazukittin.vault.data.repository.AudioRepository(applicationContext, authManager, dlSiteApi, db.audioDao(), authRepository)
 
         val viewModelFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
                 return when {
-                    modelClass.isAssignableFrom(LoginViewModel::class.java) -> 
-                        LoginViewModel(authRepository) as T
+                    modelClass.isAssignableFrom(LoginViewModel::class.java) ->
+                        LoginViewModel(
+                            authRepository,
+                            com.kazukittin.vault.data.remote.NasDiscoveryManager(applicationContext)
+                        ) as T
                     modelClass.isAssignableFrom(com.kazukittin.vault.ui.home.HomeViewModel::class.java) -> 
                         com.kazukittin.vault.ui.home.HomeViewModel(folderRepository, authRepository) as T
                     modelClass.isAssignableFrom(com.kazukittin.vault.ui.audio.AudioLibraryViewModel::class.java) -> 
@@ -89,11 +90,16 @@ class MainActivity : ComponentActivity() {
                         composable("login") {
                             val loginViewModel: LoginViewModel = viewModel(factory = viewModelFactory)
                             val loginState by loginViewModel.loginState.collectAsState()
+                            val isScanning by loginViewModel.isScanning.collectAsState()
+                            val discoveredNases by loginViewModel.discoveredNases.collectAsState()
                             LoginScreen(
                                 loginState = loginState,
+                                isScanning = isScanning,
+                                discoveredNases = discoveredNases,
                                 onLoginClick = { ip, account, pass ->
                                     loginViewModel.login(applicationContext, ip, account, pass)
                                 },
+                                onStartDiscovery = { loginViewModel.startDiscovery() },
                                 onSuccess = { _ ->
                                     Toast.makeText(this@MainActivity, "ログイン成功!", Toast.LENGTH_SHORT).show()
                                     navController.navigate("home") {
@@ -108,9 +114,19 @@ class MainActivity : ComponentActivity() {
                                 viewModel(factory = viewModelFactory)
                             val allFolders by homeViewModel.allFolders.collectAsState()
                             val pinnedFolders by homeViewModel.pinnedFolders.collectAsState()
+                            val isConnecting by homeViewModel.isConnecting.collectAsState()
+                            val connectionError by homeViewModel.connectionError.collectAsState()
                             HomeScreen(
                                 pinnedCollections = pinnedFolders,
                                 allCollections = allFolders,
+                                isConnecting = isConnecting,
+                                connectionError = connectionError,
+                                onRetry = { homeViewModel.retryConnection() },
+                                onManualConnect = {
+                                    navController.navigate("login") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
+                                },
                                 onFolderClick = { path, name ->
                                     val folder = (pinnedFolders + allFolders).find { it.id == path }
                                     val cat = folder?.category ?: ""

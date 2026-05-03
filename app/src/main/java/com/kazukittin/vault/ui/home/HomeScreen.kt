@@ -23,6 +23,10 @@ import com.kazukittin.vault.data.local.db.FolderEntity
 fun HomeScreen(
     pinnedCollections: List<FolderEntity>,
     allCollections: List<FolderEntity>,
+    isConnecting: Boolean,
+    connectionError: String?,
+    onRetry: () -> Unit,
+    onManualConnect: () -> Unit,
     onFolderClick: (String, String) -> Unit,
     onSetCategory: (String, String?) -> Unit
 ) {
@@ -30,7 +34,6 @@ fun HomeScreen(
     val vaultContainer = Color(0xFF142034)
     val vaultPrimary   = Color(0xFFA1CCED)
 
-    // pinnedとallを単純に結合して1つのグリッドで表示
     val allFolders = (pinnedCollections + allCollections).distinctBy { it.id }
 
     Scaffold(
@@ -42,25 +45,88 @@ fun HomeScreen(
         },
         containerColor = vaultSurface
     ) { padding ->
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(
-                top = padding.calculateTopPadding() + 16.dp,
-                start = 16.dp, end = 16.dp, bottom = 16.dp
-            ),
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(vaultSurface),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .background(vaultSurface)
+                .padding(top = padding.calculateTopPadding())
         ) {
-            items(allFolders) { folder ->
-                CollectionCard(
-                    folder = folder,
-                    containerColor = vaultContainer,
-                    onClick = { onFolderClick(folder.id, folder.name) },
-                    onSetCategory = { category -> onSetCategory(folder.id, category) }
-                )
+            when {
+                isConnecting -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            CircularProgressIndicator(color = vaultPrimary)
+                            Text("NASに接続中...", color = Color.White.copy(alpha = 0.7f))
+                        }
+                    }
+                }
+
+                connectionError != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            colors = CardDefaults.cardColors(containerColor = vaultContainer),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = "接続エラー",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = vaultPrimary
+                                )
+                                Text(
+                                    text = connectionError,
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "Wi-Fiに接続されているか、NASが起動しているか確認してください。",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Button(
+                                    onClick = onRetry,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = vaultPrimary)
+                                ) {
+                                    Text("再試行", color = vaultSurface)
+                                }
+                                OutlinedButton(
+                                    onClick = onManualConnect,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = vaultPrimary)
+                                ) {
+                                    Text("手動で接続設定を変更")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(allFolders) { folder ->
+                            CollectionCard(
+                                folder = folder,
+                                containerColor = vaultContainer,
+                                onClick = { onFolderClick(folder.id, folder.name) },
+                                onSetCategory = { category -> onSetCategory(folder.id, category) }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -98,7 +164,7 @@ fun CollectionCard(
                     maxLines = 2,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 if (folder.category != null) {
                     Surface(
                         color = vaultPrimary.copy(alpha = 0.15f),
@@ -121,9 +187,9 @@ fun CollectionCard(
             modifier = Modifier.background(Color(0xFF142034))
         ) {
             Text(
-                "属性を設定", 
-                color = Color.White.copy(alpha = 0.5f), 
-                fontSize = 12.sp, 
+                "属性を設定",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
             categories.forEach { cat ->

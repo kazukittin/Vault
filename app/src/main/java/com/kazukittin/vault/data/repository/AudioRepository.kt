@@ -1,21 +1,34 @@
 package com.kazukittin.vault.data.repository
 
+import android.content.Context
 import android.util.Log
 import com.kazukittin.vault.data.local.VaultAuthManager
 import com.kazukittin.vault.data.local.db.*
 import com.kazukittin.vault.data.remote.DlSiteApi
 import com.kazukittin.vault.data.remote.SynologyPhotosApi
+import com.kazukittin.vault.data.remote.VaultNetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 class AudioRepository(
+    private val context: Context,
     private val authManager: VaultAuthManager,
-    private val photosApi: SynologyPhotosApi,
     private val dlSiteApi: DlSiteApi,
     val audioDao: AudioDao,
     private val authRepository: com.kazukittin.vault.data.repository.AuthRepository
 ) {
+    private var cachedPhotosApi: SynologyPhotosApi? = null
+    private var cachedIp: String? = null
+
+    private fun getPhotosApi(): SynologyPhotosApi {
+        val ip = authManager.getNasIp() ?: ""
+        if (ip != cachedIp || cachedPhotosApi == null) {
+            cachedPhotosApi = VaultNetworkClient.createPhotosApi(context, ip)
+            cachedIp = ip
+        }
+        return cachedPhotosApi!!
+    }
     private suspend fun withAuthRetry(apiCall: suspend (String) -> com.kazukittin.vault.data.remote.FolderResponse): com.kazukittin.vault.data.remote.FolderResponse {
         val sid = authManager.getSessionId() ?: throw Exception("Not logged in")
         var response = apiCall(sid)
@@ -54,7 +67,7 @@ class AudioRepository(
      */
     suspend fun scanAudioRoot(rootPath: String): Int = withContext(Dispatchers.IO) {
         val response = withAuthRetry { sid -> 
-            photosApi.getFolderContents(folderPath = rootPath, sessionId = sid)
+            getPhotosApi().getFolderContents(folderPath = rootPath, sessionId = sid)
         }
         
         if (!response.success || response.data?.files == null) return@withContext 0
@@ -127,7 +140,7 @@ class AudioRepository(
 
     private suspend fun scanTracks(workPath: String) {
         val response = withAuthRetry { sid ->
-            photosApi.getFolderContents(folderPath = workPath, sessionId = sid)
+            getPhotosApi().getFolderContents(folderPath = workPath, sessionId = sid)
         }
         if (!response.success || response.data?.files == null) return
 

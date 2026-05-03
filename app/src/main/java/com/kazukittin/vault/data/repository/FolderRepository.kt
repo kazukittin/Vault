@@ -1,5 +1,6 @@
 package com.kazukittin.vault.data.repository
 
+import android.content.Context
 import android.util.Log
 import com.kazukittin.vault.data.local.VaultAuthManager
 import com.kazukittin.vault.data.local.db.DlSiteCacheDao
@@ -8,6 +9,7 @@ import com.kazukittin.vault.data.local.db.FolderDao
 import com.kazukittin.vault.data.local.db.FolderEntity
 import com.kazukittin.vault.data.remote.DlSiteProductInfo
 import com.kazukittin.vault.data.remote.SynologyPhotosApi
+import com.kazukittin.vault.data.remote.VaultNetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -15,13 +17,24 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 class FolderRepository(
+    private val context: Context,
     private val authManager: VaultAuthManager,
-    private val photosApi: SynologyPhotosApi,
     private val dlSiteApi: com.kazukittin.vault.data.remote.DlSiteApi,
     private val folderDao: FolderDao,
     private val dlSiteCacheDao: DlSiteCacheDao,
     private val authRepository: com.kazukittin.vault.data.repository.AuthRepository
 ) {
+    private var cachedPhotosApi: SynologyPhotosApi? = null
+    private var cachedIp: String? = null
+
+    private fun getPhotosApi(): SynologyPhotosApi {
+        val ip = authManager.getNasIp() ?: ""
+        if (ip != cachedIp || cachedPhotosApi == null) {
+            cachedPhotosApi = VaultNetworkClient.createPhotosApi(context, ip)
+            cachedIp = ip
+        }
+        return cachedPhotosApi!!
+    }
     private val dlSiteHttpClient = OkHttpClient()
 
     /** DLsiteのメタデータを取得する（DBキャッシュ優先） */
@@ -157,7 +170,7 @@ class FolderRepository(
         return withContext(Dispatchers.IO) {
             try {
                 val response = withAuthRetry { sid ->
-                    photosApi.getFolderContents(
+                    getPhotosApi().getFolderContents(
                         folderPath = folderPath,
                         offset = offset,
                         limit = limit,
@@ -181,14 +194,14 @@ class FolderRepository(
     }
 
     // NASと通信してRoomを更新する処理
-    suspend fun syncFolders() {
-        withContext(Dispatchers.IO) {
+    suspend fun syncFolders(): Boolean {
+        return withContext(Dispatchers.IO) {
             try {
                 Log.d("FolderRepository", "フォルダ取得を開始します...")
 
                 // Synology Photos WebAPIを叩く (自動再認証付き)
                 val response = withAuthRetry { sid ->
-                    photosApi.getFolders(sessionId = sid)
+                    getPhotosApi().getFolders(sessionId = sid)
                 }
 
                 if (response.success && response.data != null) {
@@ -213,11 +226,14 @@ class FolderRepository(
                     // Roomに保存 (suspendを外したのでそのまま呼べる)
                     folderDao.insertFolders(entities)
                     Log.d("FolderRepository", "DBへの保存が完了しました")
+                    true
                 } else {
                     Log.e("FolderRepository", "APIリクエスト失敗: success = false, error code = ${response.error?.code}")
+                    false
                 }
             } catch (e: Exception) {
                 Log.e("FolderRepository", "フォルダ同期エラー: ${e.message}", e)
+                false
             }
         }
     }
